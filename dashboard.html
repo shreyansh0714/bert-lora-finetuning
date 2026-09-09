@@ -1,566 +1,839 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>bert-lora-finetuning — Results Dashboard</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>bert-lora-finetuning — results</title>
 <style>
-  .viz-root {
+  :root {
     color-scheme: light;
-    --page:           #f9f9f7;
-    --surface-1:      #fcfcfb;
-    --text-primary:   #0b0b0b;
-    --text-secondary: #52514e;
-    --text-muted:     #898781;
-    --gridline:       #e1e0d9;
-    --baseline:       #c3c2b7;
-    --border:         rgba(11,11,11,0.10);
-    --series-1:       #2a78d6; /* full fine-tune */
-    --series-2:       #eb6834; /* lora */
-    --success-text:   #006300;
+    --page:            #f9f9f7;
+    --surface-1:       #fcfcfb;
+    --text-primary:    #0b0b0b;
+    --text-secondary:  #52514e;
+    --text-muted:      #898781;
+    --gridline:        #e1e0d9;
+    --axis:            #c3c2b7;
+    --border:          rgba(11, 11, 11, 0.10);
+    --series-1:        #2a78d6;   /* full fine-tune */
+    --series-2:        #eb6834;   /* LoRA */
+    --shadow:          0 1px 2px rgba(11,11,11,.04), 0 8px 24px -12px rgba(11,11,11,.12);
   }
   @media (prefers-color-scheme: dark) {
-    .viz-root {
+    :root:where(:not([data-theme="light"])) {
       color-scheme: dark;
-      --page:           #0d0d0d;
-      --surface-1:      #1a1a19;
-      --text-primary:   #ffffff;
-      --text-secondary: #c3c2b7;
-      --text-muted:     #898781;
-      --gridline:       #2c2c2a;
-      --baseline:       #383835;
-      --border:         rgba(255,255,255,0.10);
-      --series-1:       #3987e5;
-      --series-2:       #d95926;
-      --success-text:   #0ca30c;
+      --page:            #0d0d0d;
+      --surface-1:       #1a1a19;
+      --text-primary:    #ffffff;
+      --text-secondary:  #c3c2b7;
+      --text-muted:      #898781;
+      --gridline:        #2c2c2a;
+      --axis:            #383835;
+      --border:          rgba(255, 255, 255, 0.10);
+      --series-1:        #3987e5;
+      --series-2:        #d95926;
+      --shadow:          0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
     }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page:            #0d0d0d;
+    --surface-1:       #1a1a19;
+    --text-primary:    #ffffff;
+    --text-secondary:  #c3c2b7;
+    --text-muted:      #898781;
+    --gridline:        #2c2c2a;
+    --axis:            #383835;
+    --border:          rgba(255, 255, 255, 0.10);
+    --series-1:        #3987e5;
+    --series-2:        #d95926;
+    --shadow:          0 1px 2px rgba(0,0,0,.4), 0 8px 24px -12px rgba(0,0,0,.6);
   }
 
   * { box-sizing: border-box; }
-  html, body { margin: 0; padding: 0; }
+  html { -webkit-text-size-adjust: 100%; }
   body {
+    margin: 0;
     background: var(--page);
     color: var(--text-primary);
-    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-    line-height: 1.45;
+    font: 15px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 40px 24px 80px; }
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 56px 24px 72px; }
+  code, .mono {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: .88em;
+  }
 
-  header h1 { font-size: 22px; margin: 0 0 6px; }
-  header p.desc { color: var(--text-secondary); margin: 0 0 4px; max-width: 68ch; }
-  header a { color: var(--series-1); text-decoration: none; }
-  header a:hover { text-decoration: underline; }
+  /* ---------- header ---------- */
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; margin-bottom: 44px; }
+  h1 { font-size: 26px; font-weight: 640; letter-spacing: -.018em; margin: 0 0 8px; }
+  .lede { color: var(--text-secondary); margin: 0 0 12px; max-width: 62ch; }
+  .repo { color: var(--series-1); text-decoration: none; font-size: 13.5px; border-bottom: 1px solid transparent; }
+  .repo:hover { border-bottom-color: currentColor; }
+  .toggle {
+    flex: none; cursor: pointer; background: var(--surface-1); color: var(--text-secondary);
+    border: 1px solid var(--border); border-radius: 999px; padding: 7px 14px; font: inherit; font-size: 13px;
+  }
+  .toggle:hover { color: var(--text-primary); }
 
-  section { margin-top: 44px; }
-  section h2 { font-size: 16px; margin: 0 0 4px; }
-  section p.note { color: var(--text-secondary); font-size: 13px; margin: 0 0 18px; max-width: 68ch; }
+  /* ---------- sections ---------- */
+  section { margin-bottom: 52px; }
+  h2 { font-size: 13px; font-weight: 640; letter-spacing: .07em; text-transform: uppercase;
+       color: var(--text-muted); margin: 0 0 6px; }
+  .sub { color: var(--text-secondary); font-size: 14px; margin: 0 0 20px; max-width: 68ch; }
 
   .card {
-    background: var(--surface-1);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 14px; box-shadow: var(--shadow);
   }
 
-  .empty-state {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding: 28px 20px;
-    color: var(--text-secondary);
-    font-size: 13.5px;
+  /* ---------- hero ---------- */
+  .hero { padding: 32px 32px 28px; }
+  .hero-grid { display: grid; grid-template-columns: minmax(220px, 1fr) 2fr; gap: 36px; align-items: center; }
+  .hero-fig { font-size: 68px; line-height: 1; font-weight: 660; letter-spacing: -.03em; margin: 0 0 6px; }
+  .hero-label { color: var(--text-secondary); font-size: 14px; max-width: 26ch; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+  .tile-label { font-size: 12.5px; color: var(--text-muted); margin-bottom: 5px; }
+  .tile-value { font-size: 27px; font-weight: 620; letter-spacing: -.02em; line-height: 1.15; }
+  .tile-note { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+  .finding {
+    margin: 26px 0 0; padding-top: 22px; border-top: 1px solid var(--border);
+    color: var(--text-secondary); font-size: 14.5px; max-width: 88ch;
   }
-  .empty-state .title { color: var(--text-primary); font-weight: 600; font-size: 14px; }
-  .empty-state code {
-    background: var(--page);
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-size: 12.5px;
-  }
+  .finding strong { color: var(--text-primary); font-weight: 600; }
 
-  table.results-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 13.5px;
-    margin-bottom: 4px;
+  /* ---------- table ---------- */
+  .tablewrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th {
+    text-align: right; font-weight: 560; font-size: 11.5px; letter-spacing: .05em;
+    text-transform: uppercase; color: var(--text-muted); padding: 0 14px 10px; white-space: nowrap;
   }
-  table.results-table th, table.results-table td {
-    text-align: right;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--gridline);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
+  thead th:first-child { text-align: left; }
+  tbody td {
+    text-align: right; padding: 11px 14px; border-top: 1px solid var(--gridline);
+    font-variant-numeric: tabular-nums; color: var(--text-primary); white-space: nowrap;
   }
-  table.results-table th:first-child, table.results-table td:first-child {
-    text-align: left;
-    font-variant-numeric: normal;
-  }
-  table.results-table th {
-    color: var(--text-muted);
-    font-weight: 500;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-  }
-  table.results-table tr:last-child td { border-bottom: none; }
-  .swatch {
-    display: inline-block;
-    width: 9px; height: 9px;
-    border-radius: 2px;
-    margin-right: 7px;
-    vertical-align: middle;
-  }
+  tbody td:first-child { text-align: left; font-variant-numeric: normal; color: var(--text-primary); }
+  .swatch { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 9px; vertical-align: baseline; }
 
-  .chart-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-    gap: 20px;
-    margin-top: 20px;
-  }
-  .chart-panel h3 {
-    font-size: 12.5px;
-    font-weight: 500;
-    color: var(--text-secondary);
-    margin: 0 0 10px;
-  }
-  .legend { display: flex; gap: 16px; font-size: 12.5px; color: var(--text-secondary); margin-top: 10px; }
-  .legend .item { display: flex; align-items: center; }
+  /* ---------- chart grid ---------- */
+  .charts { display: grid; gap: 4px 28px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 4px 24px 24px; }
+  .charts.one { grid-template-columns: 1fr; }
+  .panel { padding: 18px 0 6px; min-width: 0; }
+  .panel h3 { font-size: 13px; font-weight: 580; margin: 0 0 2px; color: var(--text-primary); }
+  .panel .cap { font-size: 12px; color: var(--text-muted); margin: 0 0 14px; }
+  .panel svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .divider { border: 0; border-top: 1px solid var(--gridline); margin: 0 24px; }
 
-  svg text { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
-  .bar-value-label { font-size: 11px; fill: var(--text-secondary); font-variant-numeric: tabular-nums; }
-  .axis-label { font-size: 10.5px; fill: var(--text-muted); }
-  .grid-line { stroke: var(--gridline); stroke-width: 1; }
-  .baseline-line { stroke: var(--baseline); stroke-width: 1; }
+  .legend { display: flex; flex-wrap: wrap; gap: 18px; padding: 0 0 14px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend span { display: inline-flex; align-items: center; gap: 7px; }
+  .legend i { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
 
-  .tooltip {
-    position: absolute;
-    background: var(--text-primary);
-    color: var(--surface-1);
-    font-size: 11.5px;
-    padding: 4px 8px;
-    border-radius: 5px;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.1s;
-    white-space: nowrap;
-    z-index: 10;
+  .empty { padding: 34px 32px; color: var(--text-secondary); font-size: 14px; }
+  .empty b { display: block; color: var(--text-primary); font-weight: 600; margin-bottom: 6px; font-size: 15px; }
+
+  footer { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 20px; max-width: 80ch; }
+
+  #tip {
+    position: fixed; pointer-events: none; opacity: 0; transition: opacity .1s;
+    background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 11px; font-size: 12.5px; line-height: 1.5;
+    box-shadow: var(--shadow); z-index: 10; white-space: nowrap; font-variant-numeric: tabular-nums;
   }
+  #tip b { font-weight: 600; }
 
-  footer { margin-top: 56px; padding-top: 18px; border-top: 1px solid var(--gridline); color: var(--text-muted); font-size: 12px; }
-  footer a { color: var(--text-secondary); }
+  @media (max-width: 760px) {
+    .wrap { padding: 36px 16px 56px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 26px; }
+    .tiles { grid-template-columns: 1fr; gap: 16px; }
+    .charts { grid-template-columns: 1fr; }
+    .hero-fig { font-size: 54px; }
+  }
 </style>
 </head>
 <body>
-<div class="viz-root">
-  <div class="wrap">
+<div class="wrap">
 
-    <header>
-      <h1>bert-lora-finetuning — results dashboard</h1>
-      <p class="desc">Full fine-tuning vs. LoRA on <code>bert-base-uncased</code>, 77-class intent classification (Banking77). This page reads directly from <code>results/*.json</code> — it regenerates itself whenever the notebooks are re-run and re-committed, nothing here is typed in by hand.</p>
-      <p class="desc"><a href="https://github.com/shreyansh0714/bert-lora-finetuning" target="_blank" rel="noopener">github.com/shreyansh0714/bert-lora-finetuning</a></p>
-    </header>
+  <header>
+    <div>
+      <h1>Full fine-tuning vs LoRA</h1>
+      <p class="lede">
+        <code>bert-base-uncased</code> on Banking77 — 77-class intent classification. Both methods
+        trained to convergence on identical data, then measured on a held-out test set.
+        This page reads <code>results/*.json</code> directly; nothing here is typed in by hand.
+      </p>
+      <a class="repo" href="https://github.com/shreyansh0714/bert-lora-finetuning">github.com/shreyansh0714/bert-lora-finetuning</a>
+    </div>
+    <button class="toggle" id="themeBtn" type="button">Dark</button>
+  </header>
 
-    <section id="section-baseline">
-      <h2>Full fine-tune vs. LoRA (r=8)</h2>
-      <p class="note">From <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> — same data, same training config, two fine-tuning methods.</p>
-      <div class="card" id="baseline-content"><div class="empty-state">Loading…</div></div>
-    </section>
+  <section id="heroSection"></section>
 
-    <section id="section-sweep">
-      <h2>LoRA rank sweep</h2>
-      <p class="note">From <code>notebooks/02_lora_rank_sweep.ipynb</code> — LoRA trained independently at r = 4, 8, 16, 32.</p>
-      <div class="card" id="sweep-content"><div class="empty-state">Loading…</div></div>
-    </section>
+  <section id="baselineSection">
+    <h2>Method comparison</h2>
+    <p class="sub">From <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> — same data, same
+      protocol, two fine-tuning methods. Each ran until validation accuracy stopped improving.</p>
+    <div class="card" id="baseline"></div>
+  </section>
 
-    <footer>
-      Static page, no build step. Fetches <code>results/01_baseline_comparison.json</code> and <code>results/02_rank_sweep.json</code> relative to this file. View via GitHub Pages, or locally with <code>python -m http.server</code> run from the repo root — opening this file directly (<code>file://</code>) blocks the fetch in most browsers.
-    </footer>
+  <section id="curveSection">
+    <h2>Convergence</h2>
+    <p class="sub">Validation accuracy after each epoch. The gap in the table above is partly a gap in
+      training budget — this is where you can see it.</p>
+    <div class="card" id="curves"></div>
+  </section>
 
-  </div>
+  <section id="sweepSection">
+    <h2>LoRA rank sweep</h2>
+    <p class="sub">From <code>notebooks/02_lora_rank_sweep.ipynb</code> — LoRA trained independently at
+      r = 4, 8, 16, 32, holding <code>alpha/r</code> constant so only the rank varies.</p>
+    <div class="card" id="sweep"></div>
+  </section>
+
+  <footer>
+    Static page, no build step. Serve the repo root over HTTP — <code>python -m http.server</code>, or
+    GitHub Pages. Opening this file as <code>file://</code> blocks the fetch and every panel will read
+    as empty.
+  </footer>
 </div>
 
-<div class="tooltip" id="tooltip"></div>
+<div id="tip"></div>
 
 <script>
 (function () {
   "use strict";
 
-  var css = getComputedStyle(document.querySelector(".viz-root"));
-  var COLOR = {
-    surface: css.getPropertyValue("--surface-1").trim(),
-    textPrimary: css.getPropertyValue("--text-primary").trim(),
-    textSecondary: css.getPropertyValue("--text-secondary").trim(),
-    textMuted: css.getPropertyValue("--text-muted").trim(),
-    grid: css.getPropertyValue("--gridline").trim(),
-    baseline: css.getPropertyValue("--baseline").trim(),
-    series1: css.getPropertyValue("--series-1").trim(),
-    series2: css.getPropertyValue("--series-2").trim(),
-  };
-
-  var tooltip = document.getElementById("tooltip");
-  function showTooltip(evt, html) {
-    tooltip.innerHTML = html;
-    tooltip.style.left = (evt.pageX + 12) + "px";
-    tooltip.style.top = (evt.pageY - 12) + "px";
-    tooltip.style.opacity = "1";
+  /* ------------------------------------------------------------------ theme */
+  var root = document.documentElement, btn = document.getElementById("themeBtn");
+  function isDark() {
+    var t = root.getAttribute("data-theme");
+    if (t) return t === "dark";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches;
   }
-  function hideTooltip() { tooltip.style.opacity = "0"; }
+  function syncBtn() { btn.textContent = isDark() ? "Light" : "Dark"; }
+  btn.addEventListener("click", function () {
+    root.setAttribute("data-theme", isDark() ? "light" : "dark");
+    syncBtn();
+    renderAll();
+  });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () {
+    if (!root.getAttribute("data-theme")) { syncBtn(); renderAll(); }
+  });
+  syncBtn();
 
-  var SVG_NS = "http://www.w3.org/2000/svg";
-  function el(tag, attrs) {
-    var e = document.createElementNS(SVG_NS, tag);
-    for (var k in attrs) e.setAttribute(k, attrs[k]);
-    return e;
+  function tokens() {
+    var c = getComputedStyle(root);
+    return {
+      surface: c.getPropertyValue("--surface-1").trim(),
+      primary: c.getPropertyValue("--text-primary").trim(),
+      secondary: c.getPropertyValue("--text-secondary").trim(),
+      muted: c.getPropertyValue("--text-muted").trim(),
+      grid: c.getPropertyValue("--gridline").trim(),
+      axis: c.getPropertyValue("--axis").trim(),
+      s1: c.getPropertyValue("--series-1").trim(),
+      s2: c.getPropertyValue("--series-2").trim()
+    };
   }
 
-  // Real text measurement (canvas), not a guessed px-per-character — labels must never clip.
-  var measureCanvas = document.createElement("canvas");
-  var measureCtx = measureCanvas.getContext("2d");
-  function textWidth(str, fontPx) {
-    measureCtx.font = (fontPx || 11) + "px system-ui, -apple-system, 'Segoe UI', sans-serif";
-    return measureCtx.measureText(str).width;
+  /* ------------------------------------------------------------- primitives */
+  var NS = "http://www.w3.org/2000/svg";
+  function svgEl(tag, attrs) {
+    var n = document.createElementNS(NS, tag);
+    for (var k in attrs) if (attrs[k] !== null && attrs[k] !== undefined) n.setAttribute(k, attrs[k]);
+    return n;
   }
-  function fmt(n) {
-    if (n === null || n === undefined) return "—";
-    if (Math.abs(n) >= 1000) return Math.round(n).toLocaleString();
-    if (Math.abs(n) < 1 && n !== 0) return (Math.round(n * 1000) / 1000).toString();
-    return (Math.round(n * 100) / 100).toString();
+  var measureCtx = document.createElement("canvas").getContext("2d");
+  function textWidth(str, px, weight) {
+    measureCtx.font = (weight || 400) + " " + px + "px system-ui, -apple-system, 'Segoe UI', sans-serif";
+    return measureCtx.measureText(String(str)).width;
   }
-  function pct(n) { return n === null || n === undefined ? "—" : (Math.round(n * 1000) / 10) + "%"; }
+  function fmtInt(n) {
+    if (n === null || n === undefined || isNaN(n)) return "—";
+    return Math.round(n).toLocaleString("en-US");
+  }
+  function fmtPct(x, dp) {
+    if (x === null || x === undefined || isNaN(x)) return "—";
+    var d = dp === undefined ? 1 : dp;
+    return (x * 100).toFixed(d) + "%";
+  }
+  function fmtSecs(s) {
+    if (s === null || s === undefined || isNaN(s)) return "—";
+    if (s < 90) return s.toFixed(0) + "s";
+    var m = Math.floor(s / 60), r = Math.round(s % 60);
+    return m + "m " + (r < 10 ? "0" : "") + r + "s";
+  }
 
-  // ---- Bar chart: values may span orders of magnitude, so bar length uses a
-  // log scale internally, but every bar is always directly labeled with its
-  // real value at the tip — the reader never has to eyeball a log axis.
-  function barChart(container, opts) {
-    var w = 320, h = 170, padL = 8, padTop = 10, padBottom = 26;
-    var barH = 22, gap = 14;
-    var n = opts.data.length;
-    var plotH = n * barH + (n - 1) * gap;
-    h = plotH + padTop + padBottom;
+  var tip = document.getElementById("tip");
+  function showTip(evt, html) {
+    tip.innerHTML = html;
+    tip.style.opacity = "1";
+    var r = tip.getBoundingClientRect();
+    var x = evt.clientX + 14, y = evt.clientY - r.height - 12;
+    if (x + r.width > window.innerWidth - 8) x = evt.clientX - r.width - 14;
+    if (y < 8) y = evt.clientY + 18;
+    tip.style.left = x + "px";
+    tip.style.top = y + "px";
+  }
+  function hideTip() { tip.style.opacity = "0"; }
 
-    // Measure the widest value label first — padR must fit it, never clip it.
-    var labelStrings = opts.data.map(function (d) { return opts.valueFormatter(d.value); });
-    var maxLabelW = Math.max.apply(null, labelStrings.map(function (s) { return textWidth(s, 11); }));
-    var padR = Math.max(40, maxLabelW + 16);
-    // If the label is wide enough that a fixed 320 width would squeeze the bars down to
-    // nothing, grow the chart instead of shrinking the plot area to unreadable.
-    if (padR > w * 0.6) w = padR / 0.6;
-    var plotW = w - padL - padR;
+  /* Axis ticks land on round numbers (1 / 2 / 2.5 / 5 × 10^k), and the scale
+     snaps out to them — otherwise a 0–0.988 range prints 59% and 79% as ticks. */
+  function niceTicks(min, max, count) {
+    var span = max - min;
+    if (!(span > 0)) span = Math.abs(max) || 1;
+    var raw = span / count;
+    var mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var norm = raw / mag;
+    var step = (norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 2.5 ? 2.5 : norm <= 5 ? 5 : 10) * mag;
+    var lo = Math.floor(min / step) * step;
+    var hi = Math.ceil(max / step) * step;
+    var out = [];
+    for (var v = lo; v <= hi + step * 1e-6; v += step) {
+      out.push(Math.abs(v) < step * 1e-9 ? 0 : v);
+    }
+    return { ticks: out, min: lo, max: hi };
+  }
 
-    var svg = el("svg", { width: "100%", viewBox: "0 0 " + w + " " + h, style: "max-width:" + w + "px" });
+  /* Rounded on the data end only; square where it meets the baseline. */
+  function barPath(x, y, w, h, r) {
+    r = Math.max(0, Math.min(r, w, h / 2));
+    if (w <= 0.5) return "M" + x + "," + y + "h0.5v" + h + "h-0.5z";
+    return "M" + x + "," + y +
+           "h" + (w - r) +
+           "a" + r + "," + r + " 0 0 1 " + r + "," + r +
+           "v" + (h - 2 * r) +
+           "a" + r + "," + r + " 0 0 1 " + (-r) + "," + r +
+           "h" + (-(w - r)) + "z";
+  }
 
-    var values = opts.data.map(function (d) { return d.value; });
-    var maxV = Math.max.apply(null, values.filter(function (v) { return v !== null; }));
-    var useLog = opts.logScale && maxV > 0;
-    function scale(v) {
-      if (v === null || v === undefined) return 0;
-      if (useLog) {
-        var lv = Math.log10(Math.max(v, 1));
-        var lmax = Math.log10(Math.max(maxV, 1));
-        return lmax === 0 ? 0 : (lv / lmax) * plotW;
-      }
-      return maxV === 0 ? 0 : (v / maxV) * plotW;
+  /* ------------------------------------------------------- horizontal bars */
+  /* opts: {rows:[{label,value,color}], format, logScale, note} */
+  function barChart(host, opts) {
+    var T = tokens();
+    var BAR = 22, GAP = 12, PAD_T = 6, PAD_B = 6;
+    var labelW = 0, valueW = 0;
+    opts.rows.forEach(function (d) {
+      labelW = Math.max(labelW, textWidth(d.label, 12));
+      valueW = Math.max(valueW, textWidth(opts.format(d.value), 12, 600));
+    });
+    var padL = Math.ceil(labelW) + 14;
+    var padR = Math.ceil(valueW) + 12;
+    var W = 460;
+    var plotW = W - padL - padR;
+    if (plotW < 90) { W = padL + padR + 120; plotW = 120; }
+    var H = PAD_T + opts.rows.length * BAR + (opts.rows.length - 1) * GAP + PAD_B;
+
+    var vals = opts.rows.map(function (d) { return d.value; }).filter(function (v) { return v > 0; });
+    var maxV = Math.max.apply(null, vals);
+    var minV = Math.min.apply(null, vals);
+    var scale;
+    if (opts.logScale) {
+      var lo = Math.log10(minV) - 0.35, hi = Math.log10(maxV);
+      scale = function (v) { return v <= 0 ? 0 : Math.max(2, ((Math.log10(v) - lo) / (hi - lo)) * plotW); };
+    } else {
+      scale = function (v) { return v <= 0 ? 0 : Math.max(2, (v / maxV) * plotW); };
     }
 
-    // baseline
-    svg.appendChild(el("line", {
-      x1: padL, x2: padL, y1: padTop, y2: padTop + plotH,
-      class: "baseline-line",
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img" });
+
+    svg.appendChild(svgEl("line", {
+      x1: padL, y1: PAD_T - 2, x2: padL, y2: H - PAD_B + 2,
+      stroke: T.axis, "stroke-width": 1
     }));
 
-    opts.data.forEach(function (d, i) {
-      var y = padTop + i * (barH + gap);
-      var bw = Math.max(scale(d.value), d.value ? 3 : 0);
+    opts.rows.forEach(function (d, i) {
+      var y = PAD_T + i * (BAR + GAP);
+      var w = scale(d.value);
 
-      var bar = el("rect", {
-        x: padL, y: y, width: bw, height: barH,
-        rx: 4, ry: 4, fill: d.color,
+      var t = svgEl("text", {
+        x: padL - 10, y: y + BAR / 2, "text-anchor": "end", "dominant-baseline": "central",
+        fill: T.secondary, "font-size": 12
       });
-      svg.appendChild(bar);
+      t.textContent = d.label;
+      svg.appendChild(t);
 
-      // hover target (slightly taller than the bar itself)
-      var hit = el("rect", {
-        x: padL, y: y - 4, width: Math.max(bw, 4), height: barH + 8,
-        fill: "transparent",
+      svg.appendChild(svgEl("path", { d: barPath(padL + 1, y, w, BAR, 4), fill: d.color }));
+
+      var v = svgEl("text", {
+        x: padL + 1 + w + 9, y: y + BAR / 2, "dominant-baseline": "central",
+        fill: T.primary, "font-size": 12, "font-weight": 600
       });
-      hit.addEventListener("mousemove", function (evt) {
-        showTooltip(evt, "<strong>" + d.label + "</strong><br/>" + opts.valueFormatter(d.value));
+      v.textContent = opts.format(d.value);
+      svg.appendChild(v);
+
+      var hit = svgEl("rect", {
+        x: 0, y: y - GAP / 2, width: W, height: BAR + GAP, fill: "transparent", style: "cursor:default"
       });
-      hit.addEventListener("mouseleave", hideTooltip);
+      hit.addEventListener("mousemove", function (e) {
+        showTip(e, "<b>" + d.label + "</b><br>" + (opts.tipLabel || "") + opts.format(d.value));
+      });
+      hit.addEventListener("mouseleave", hideTip);
       svg.appendChild(hit);
-
-      var label = el("text", {
-        x: padL + bw + 8, y: y + barH / 2 + 4,
-        class: "bar-value-label",
-      });
-      label.textContent = opts.valueFormatter(d.value);
-      svg.appendChild(label);
-
-      var rowLabel = el("text", {
-        x: padL, y: y - 6,
-        class: "axis-label",
-      });
-      rowLabel.textContent = d.label;
-      svg.appendChild(rowLabel);
     });
 
-    container.appendChild(svg);
+    host.appendChild(svg);
   }
 
-  // ---- Line chart: 1-2 series over an ordinal x-axis (used for the rank sweep).
-  function lineChart(container, opts) {
-    var w = 420, h = 240, padR = 16;
-    var padTop = 16, padBottom = 30;
+  /* ------------------------------------------------------------ line chart */
+  /* opts: {x:[], series:[{label,color,values:[]}], yFormat, xLabel, yMinZero, xLog} */
+  function lineChart(host, opts) {
+    var T = tokens();
+    /* The viewBox width must be close to the rendered CSS width, or the fonts
+       scale down with it — a 900-unit box inside a 470px column halves them. */
+    var W = opts.width || 900, H = opts.height || 300, PAD_T = 14, PAD_B = 40;
+
+    var all = [];
+    opts.series.forEach(function (s) {
+      s.values.forEach(function (v) { if (v !== null && v !== undefined && !isNaN(v)) all.push(v); });
+    });
+    if (!all.length) return;
+    var rawMin = Math.min.apply(null, all), rawMax = Math.max.apply(null, all);
+    var lo, hi;
+    if (opts.yMinZero) { lo = 0; hi = rawMax; }
+    else {
+      var span = (rawMax - rawMin) || Math.abs(rawMax) || 1;
+      lo = rawMin - span * 0.15; hi = rawMax + span * 0.15;
+      if (rawMin >= 0 && lo < 0) lo = 0;
+    }
+    var nice = niceTicks(lo, hi, 5);
+    var ticks = nice.ticks, minY = nice.min, maxY = nice.max;
+    if (maxY === minY) maxY = minY + 1;
+
+    var tickW = 0;
+    ticks.forEach(function (t) { tickW = Math.max(tickW, textWidth(opts.yFormat(t), 11)); });
+    var padL = Math.ceil(tickW) + 16;
+
+    /* End-labels only read when few series separate at the right edge; past two
+       they converge and stack into noise, so the legend and tooltip carry it. */
+    var endLabels = opts.series.length <= 2;
+    var padR = 18;
+    if (endLabels) {
+      var endW = 0;
+      opts.series.forEach(function (s) {
+        for (var i = s.values.length - 1; i >= 0; i--) {
+          if (s.values[i] !== null && s.values[i] !== undefined && !isNaN(s.values[i])) {
+            endW = Math.max(endW, textWidth(opts.yFormat(s.values[i]), 11.5, 600));
+            break;
+          }
+        }
+      });
+      padR = Math.ceil(endW) + 20;
+    }
+    var plotW = W - padL - padR, plotH = H - PAD_T - PAD_B;
 
     var xs = opts.x;
-    var allY = opts.series.reduce(function (acc, s) { return acc.concat(s.values.filter(function (v) { return v !== null; })); }, []);
-    if (opts.referenceValue !== null && opts.referenceValue !== undefined) allY.push(opts.referenceValue);
-    var rawMin = Math.min.apply(null, allY);
-    var rawMax = Math.max.apply(null, allY);
-    var minY, maxY;
-    if (opts.yMinAtZero) {
-      // Magnitude data (e.g. parameter counts) never goes negative — pad the top only,
-      // anchor the bottom at a clean zero instead of auto-padding into nonsense.
-      minY = 0;
-      maxY = rawMax === 0 ? 1 : rawMax * 1.15;
-    } else {
-      minY = opts.yMin !== undefined ? opts.yMin : rawMin;
-      maxY = opts.yMax !== undefined ? opts.yMax : rawMax;
-      if (minY === maxY) { minY -= 1; maxY += 1; }
-      var yPad = (maxY - minY) * 0.15;
-      minY -= yPad; maxY += yPad;
+    var xMin = Math.min.apply(null, xs), xMax = Math.max.apply(null, xs);
+    function xPos(v) {
+      if (opts.xLog) {
+        var a = Math.log2(xMin), b = Math.log2(xMax);
+        return padL + (b === a ? 0.5 : (Math.log2(v) - a) / (b - a)) * plotW;
+      }
+      return padL + (xMax === xMin ? 0.5 : (v - xMin) / (xMax - xMin)) * plotW;
     }
+    function yPos(v) { return PAD_T + plotH - ((v - minY) / (maxY - minY)) * plotH; }
 
-    // Precompute tick label strings and measure the widest one — padL must fit it, never clip it.
-    var steps = 4;
-    var tickStrings = [];
-    for (var s = 0; s <= steps; s++) {
-      var gv = maxY - (s / steps) * (maxY - minY);
-      tickStrings.push(opts.yTickFormatter ? opts.yTickFormatter(gv) : fmt(gv));
-    }
-    var maxTickW = Math.max.apply(null, tickStrings.map(function (str) { return textWidth(str, 10.5); }));
-    var padL = Math.max(30, maxTickW + 16);
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, role: "img" });
 
-    var plotW = w - padL - padR;
-    var plotH = h - padTop - padBottom;
-
-    function xPos(i) { return padL + (i / (xs.length - 1)) * plotW; }
-    function yPos(v) { return padTop + plotH - ((v - minY) / (maxY - minY)) * plotH; }
-
-    var svg = el("svg", { width: "100%", viewBox: "0 0 " + w + " " + h, style: "max-width:" + w + "px" });
-
-    // gridlines (4 horizontal steps)
-    for (var s2 = 0; s2 <= steps; s2++) {
-      var gy = padTop + (s2 / steps) * plotH;
-      svg.appendChild(el("line", { x1: padL, x2: padL + plotW, y1: gy, y2: gy, class: "grid-line" }));
-      var gl = el("text", { x: padL - 8, y: gy + 3, class: "axis-label", "text-anchor": "end" });
-      gl.textContent = tickStrings[s2];
-      svg.appendChild(gl);
-    }
-
-    // x axis labels
-    xs.forEach(function (xv, i) {
-      var xl = el("text", { x: xPos(i), y: h - 8, class: "axis-label", "text-anchor": "middle" });
-      xl.textContent = "r=" + xv;
-      svg.appendChild(xl);
-    });
-
-    // reference line (e.g. full fine-tune accuracy)
-    if (opts.referenceValue !== null && opts.referenceValue !== undefined) {
-      var ry = yPos(opts.referenceValue);
-      var refLine = el("line", {
-        x1: padL, x2: padL + plotW, y1: ry, y2: ry,
-        stroke: COLOR.textMuted, "stroke-width": 1.5, "stroke-dasharray": "4,3",
+    ticks.forEach(function (t) {
+      var y = yPos(t);
+      svg.appendChild(svgEl("line", { x1: padL, y1: y, x2: padL + plotW, y2: y, stroke: T.grid, "stroke-width": 1 }));
+      var lab = svgEl("text", {
+        x: padL - 10, y: y, "text-anchor": "end", "dominant-baseline": "central",
+        fill: T.muted, "font-size": 11, style: "font-variant-numeric:tabular-nums"
       });
-      svg.appendChild(refLine);
-      var refLabel = el("text", { x: padL + plotW, y: ry - 5, class: "axis-label", "text-anchor": "end" });
-      refLabel.textContent = opts.referenceLabel + " (" + fmt(opts.referenceValue) + ")";
-      svg.appendChild(refLabel);
+      lab.textContent = opts.yFormat(t);
+      svg.appendChild(lab);
+    });
+    svg.appendChild(svgEl("line", {
+      x1: padL, y1: PAD_T + plotH, x2: padL + plotW, y2: PAD_T + plotH, stroke: T.axis, "stroke-width": 1
+    }));
+
+    var step = Math.max(1, Math.ceil(xs.length / 10));
+    xs.forEach(function (xv, i) {
+      if (!opts.xLog && i % step !== 0 && i !== xs.length - 1) return;
+      var lab = svgEl("text", {
+        x: xPos(xv), y: PAD_T + plotH + 18, "text-anchor": "middle",
+        fill: T.muted, "font-size": 11, style: "font-variant-numeric:tabular-nums"
+      });
+      lab.textContent = xv;
+      svg.appendChild(lab);
+    });
+    if (opts.xLabel) {
+      var xl = svgEl("text", {
+        x: padL + plotW / 2, y: H - 6, "text-anchor": "middle", fill: T.muted, "font-size": 11.5
+      });
+      xl.textContent = opts.xLabel;
+      svg.appendChild(xl);
     }
 
     opts.series.forEach(function (s) {
-      var pts = xs.map(function (xv, i) { return s.values[i] === null ? null : [xPos(i), yPos(s.values[i])]; });
-      var validPts = pts.filter(function (p) { return p !== null; });
-      if (validPts.length > 1) {
-        var d = validPts.map(function (p, i) { return (i === 0 ? "M" : "L") + p[0] + "," + p[1]; }).join(" ");
-        svg.appendChild(el("path", { d: d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+      var pts = [];
+      xs.forEach(function (xv, i) {
+        var v = s.values[i];
+        if (v === null || v === undefined || isNaN(v)) return;
+        pts.push([xPos(xv), yPos(v), xv, v]);
+      });
+      if (pts.length > 1) {
+        svg.appendChild(svgEl("path", {
+          d: pts.map(function (p, i) { return (i ? "L" : "M") + p[0].toFixed(2) + "," + p[1].toFixed(2); }).join(" "),
+          fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round"
+        }));
       }
-      pts.forEach(function (p, i) {
-        if (p === null) return;
-        var dot = el("circle", { cx: p[0], cy: p[1], r: 4, fill: s.color, stroke: COLOR.surface, "stroke-width": 2 });
-        svg.appendChild(dot);
-        var hit = el("circle", { cx: p[0], cy: p[1], r: 10, fill: "transparent" });
-        hit.addEventListener("mousemove", function (evt) {
-          showTooltip(evt, "<strong>" + s.label + "</strong><br/>r=" + xs[i] + ": " + (opts.yTickFormatter ? opts.yTickFormatter(s.values[i]) : fmt(s.values[i])));
+      /* A reference line carries one measured value held constant across x —
+         drawing a marker at every x would imply it was measured at each. */
+      if (!s.noMarkers) {
+        pts.forEach(function (p, i) {
+          var dense = pts.length > 14;
+          var r = (!dense || i === pts.length - 1) ? 4 : 2.6;
+          svg.appendChild(svgEl("circle", {
+            cx: p[0], cy: p[1], r: r, fill: s.color, stroke: T.surface, "stroke-width": 2
+          }));
         });
-        hit.addEventListener("mouseleave", hideTooltip);
+      }
+      /* direct label at the series end */
+      var last = pts[pts.length - 1];
+      if (last && endLabels) {
+        var dl = svgEl("text", {
+          x: last[0] + 10, y: last[1], "text-anchor": "start", "dominant-baseline": "central",
+          fill: T.secondary, "font-size": 11.5, "font-weight": 600
+        });
+        dl.textContent = opts.yFormat(last[3]);
+        svg.appendChild(dl);
+      }
+      /* hit targets — generous, per interaction spec */
+      pts.forEach(function (p) {
+        var hit = svgEl("circle", { cx: p[0], cy: p[1], r: 13, fill: "transparent" });
+        hit.addEventListener("mousemove", function (e) {
+          showTip(e, "<b>" + s.label + "</b><br>" + (opts.xLabel || "x") + " " + p[2] +
+                     " · " + opts.yFormat(p[3]));
+        });
+        hit.addEventListener("mouseleave", hideTip);
         svg.appendChild(hit);
       });
     });
 
-    container.appendChild(svg);
+    host.appendChild(svg);
   }
 
-  function emptyState(container, title, hint) {
-    container.innerHTML = "";
-    var wrapDiv = document.createElement("div");
-    wrapDiv.className = "empty-state";
-    var t = document.createElement("div");
-    t.className = "title";
-    t.textContent = title;
-    var h = document.createElement("div");
-    h.innerHTML = hint;
-    wrapDiv.appendChild(t);
-    wrapDiv.appendChild(h);
-    container.appendChild(wrapDiv);
+  function legend(host, items) {
+    var d = document.createElement("div");
+    d.className = "legend";
+    items.forEach(function (it) {
+      var s = document.createElement("span");
+      var i = document.createElement("i");
+      i.style.background = it.color;
+      s.appendChild(i);
+      s.appendChild(document.createTextNode(it.label));
+      d.appendChild(s);
+    });
+    host.appendChild(d);
   }
 
-  function renderBaseline(rows) {
-    var container = document.getElementById("baseline-content");
-    container.innerHTML = "";
+  function panel(host, title, caption) {
+    var p = document.createElement("div");
+    p.className = "panel";
+    var h = document.createElement("h3"); h.textContent = title; p.appendChild(h);
+    if (caption) { var c = document.createElement("p"); c.className = "cap"; c.textContent = caption; p.appendChild(c); }
+    host.appendChild(p);
+    return p;
+  }
 
-    var full = rows.find(function (r) { return r.method === "full_finetune"; });
-    var lora = rows.find(function (r) { return r.method === "lora_r8"; });
-    if (!full || !lora) { emptyState(container, "Results file found but incomplete.", "Expected rows for <code>full_finetune</code> and <code>lora_r8</code>."); return; }
+  function empty(host, title, hint) {
+    var d = document.createElement("div");
+    d.className = "empty";
+    var b = document.createElement("b"); b.textContent = title; d.appendChild(b);
+    d.insertAdjacentHTML("beforeend", hint);
+    host.appendChild(d);
+  }
 
-    var table = document.createElement("table");
-    table.className = "results-table";
-    table.innerHTML =
-      "<thead><tr><th>Method</th><th>Trainable params</th><th>% of total</th><th>Accuracy</th><th>Macro F1</th><th>Train time (s)</th><th>Peak GPU mem (MB)</th></tr></thead>" +
-      "<tbody>" +
-      "<tr><td><span class='swatch' style='background:" + COLOR.series1 + "'></span>Full fine-tune</td><td>" + fmt(full.trainable_params) + "</td><td>" + pct(full.trainable_pct / 100) + "</td><td>" + pct(full.accuracy) + "</td><td>" + fmt(full.macro_f1) + "</td><td>" + fmt(full.train_time_s) + "</td><td>" + fmt(full.peak_mem_mb) + "</td></tr>" +
-      "<tr><td><span class='swatch' style='background:" + COLOR.series2 + "'></span>LoRA (r=8)</td><td>" + fmt(lora.trainable_params) + "</td><td>" + pct(lora.trainable_pct / 100) + "</td><td>" + pct(lora.accuracy) + "</td><td>" + fmt(lora.macro_f1) + "</td><td>" + fmt(lora.train_time_s) + "</td><td>" + fmt(lora.peak_mem_mb) + "</td></tr>" +
-      "</tbody>";
-    container.appendChild(table);
+  function table(host, head, rows) {
+    var w = document.createElement("div"); w.className = "tablewrap";
+    var t = document.createElement("table");
+    var thead = document.createElement("thead"), tr = document.createElement("tr");
+    head.forEach(function (h) { var th = document.createElement("th"); th.textContent = h; tr.appendChild(th); });
+    thead.appendChild(tr); t.appendChild(thead);
+    var tb = document.createElement("tbody");
+    rows.forEach(function (r) {
+      var row = document.createElement("tr");
+      r.forEach(function (cell, i) {
+        var td = document.createElement("td");
+        if (i === 0 && cell && cell.color) {
+          var sw = document.createElement("span");
+          sw.className = "swatch"; sw.style.background = cell.color;
+          td.appendChild(sw);
+          td.appendChild(document.createTextNode(cell.text));
+        } else {
+          td.textContent = cell && cell.text !== undefined ? cell.text : cell;
+        }
+        row.appendChild(td);
+      });
+      tb.appendChild(row);
+    });
+    t.appendChild(tb); w.appendChild(t);
+    var pad = document.createElement("div");
+    pad.style.padding = "20px 24px 4px";
+    pad.appendChild(w);
+    host.appendChild(pad);
+  }
 
-    var grid = document.createElement("div");
-    grid.className = "chart-grid";
-    container.appendChild(grid);
+  /* ------------------------------------------------------------- rendering */
+  var DATA = { baseline: null, curves: null, sweep: null, sweepCurves: null };
 
-    function panel(title) {
-      var p = document.createElement("div");
-      p.className = "chart-panel";
-      var h3 = document.createElement("h3");
-      h3.textContent = title;
-      p.appendChild(h3);
-      grid.appendChild(p);
-      return p;
+  function renderHero() {
+    var host = document.getElementById("heroSection");
+    host.innerHTML = "";
+    if (!DATA.baseline) return;
+    var T = tokens();
+    var full = DATA.baseline.filter(function (r) { return r.method === "full_finetune"; })[0];
+    var lora = DATA.baseline.filter(function (r) { return r.method !== "full_finetune"; })[0];
+    if (!full || !lora) return;
+
+    var retained = lora.accuracy / full.accuracy;
+    var reduction = full.trainable_params / lora.trainable_params;
+    var memSaved = (full.peak_mem_mb && lora.peak_mem_mb) ? 1 - lora.peak_mem_mb / full.peak_mem_mb : null;
+    var timeRatio = lora.train_time_s / full.train_time_s;
+    var gapPts = (full.accuracy - lora.accuracy) * 100;
+
+    var card = document.createElement("div");
+    card.className = "card hero";
+    card.innerHTML =
+      '<div class="hero-grid">' +
+        '<div>' +
+          '<div class="hero-fig">' + (retained * 100).toFixed(0) + '%</div>' +
+          '<div class="hero-label">of full fine-tuning accuracy, retained by LoRA</div>' +
+        '</div>' +
+        '<div class="tiles">' +
+          '<div><div class="tile-label">Trainable parameters</div>' +
+            '<div class="tile-value">' + reduction.toFixed(0) + '&times;</div>' +
+            '<div class="tile-note">fewer &mdash; ' + fmtInt(lora.trainable_params) + ' vs ' + fmtInt(full.trainable_params) + '</div></div>' +
+          '<div><div class="tile-label">Peak GPU memory</div>' +
+            '<div class="tile-value">' + (memSaved === null ? '&mdash;' : '&minus;' + (memSaved * 100).toFixed(0) + '%') + '</div>' +
+            '<div class="tile-note">' + fmtInt(lora.peak_mem_mb) + ' MB vs ' + fmtInt(full.peak_mem_mb) + ' MB</div></div>' +
+          '<div><div class="tile-label">Wall-clock time</div>' +
+            '<div class="tile-value">' + timeRatio.toFixed(2) + '&times;</div>' +
+            '<div class="tile-note">' + (timeRatio > 1 ? 'longer' : 'shorter') + ' &mdash; ' + fmtSecs(lora.train_time_s) + ' vs ' + fmtSecs(full.train_time_s) + '</div></div>' +
+        '</div>' +
+      '</div>' +
+      '<p class="finding">LoRA reached <strong>' + fmtPct(lora.accuracy) + '</strong> test accuracy against full ' +
+        'fine-tuning’s <strong>' + fmtPct(full.accuracy) + '</strong> — a gap of ' + gapPts.toFixed(1) + ' points — while ' +
+        'training <strong>' + (lora.trainable_params / full.trainable_params * 100).toFixed(2) + '%</strong> of the parameters. ' +
+        (full.epochs_run && lora.epochs_run
+          ? 'It needed <strong>' + lora.epochs_run + ' epochs</strong> to full fine-tuning’s <strong>' + full.epochs_run + '</strong>, ' +
+            'which is where the extra wall-clock time goes: fewer gradients per step, more steps.'
+          : '') +
+      '</p>';
+    host.appendChild(card);
+  }
+
+  function renderBaseline() {
+    var host = document.getElementById("baseline");
+    host.innerHTML = "";
+    if (!DATA.baseline) {
+      empty(host, "No results yet.",
+        'Run <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> on Colab or Kaggle and commit ' +
+        'the generated <code>results/01_baseline_comparison.json</code>, then reload.');
+      return;
     }
+    var T = tokens();
+    var rows = DATA.baseline.slice();
+    var colorFor = function (r) { return r.method === "full_finetune" ? T.s1 : T.s2; };
+    var nameFor = function (r) { return r.method === "full_finetune" ? "Full fine-tune" : "LoRA (r=8)"; };
 
-    barChart(panel("Trainable parameters"), {
-      data: [
-        { label: "Full fine-tune", value: full.trainable_params, color: COLOR.series1 },
-        { label: "LoRA (r=8)", value: lora.trainable_params, color: COLOR.series2 },
-      ],
-      logScale: true,
-      valueFormatter: fmt,
+    table(host,
+      ["Method", "Trainable params", "% of total", "Accuracy", "Macro F1", "Epochs", "Train time", "Peak GPU mem"],
+      rows.map(function (r) {
+        return [
+          { text: nameFor(r), color: colorFor(r) },
+          fmtInt(r.trainable_params),
+          (r.trainable_pct !== undefined ? r.trainable_pct + "%" : "—"),
+          fmtPct(r.accuracy, 1),
+          r.macro_f1 !== undefined ? r.macro_f1.toFixed(3) : "—",
+          r.epochs_run !== undefined ? String(r.epochs_run) : "—",
+          fmtSecs(r.train_time_s),
+          r.peak_mem_mb !== undefined && r.peak_mem_mb !== null ? fmtInt(r.peak_mem_mb) + " MB" : "—"
+        ];
+      }));
+
+    var hr = document.createElement("hr"); hr.className = "divider"; host.appendChild(hr);
+
+    var grid = document.createElement("div"); grid.className = "charts"; host.appendChild(grid);
+    var mk = function (r) { return { label: nameFor(r), color: colorFor(r) }; };
+
+    barChart(panel(grid, "Trainable parameters", "Log scale — the linear difference is 300-fold."), {
+      rows: rows.map(function (r) { var o = mk(r); o.value = r.trainable_params; return o; }),
+      format: fmtInt, logScale: true
     });
-
-    barChart(panel("Accuracy"), {
-      data: [
-        { label: "Full fine-tune", value: full.accuracy, color: COLOR.series1 },
-        { label: "LoRA (r=8)", value: lora.accuracy, color: COLOR.series2 },
-      ],
-      logScale: false,
-      valueFormatter: pct,
+    barChart(panel(grid, "Test accuracy", "Held-out Banking77 test split, 3,080 examples."), {
+      rows: rows.map(function (r) { var o = mk(r); o.value = r.accuracy; return o; }),
+      format: function (v) { return fmtPct(v, 1); }
     });
-
-    barChart(panel("Training time"), {
-      data: [
-        { label: "Full fine-tune", value: full.train_time_s, color: COLOR.series1 },
-        { label: "LoRA (r=8)", value: lora.train_time_s, color: COLOR.series2 },
-      ],
-      logScale: false,
-      valueFormatter: function (v) { return fmt(v) + "s"; },
+    barChart(panel(grid, "Peak GPU memory", "Highest single-device allocation during training."), {
+      rows: rows.map(function (r) { var o = mk(r); o.value = r.peak_mem_mb; return o; }),
+      format: function (v) { return fmtInt(v) + " MB"; }
+    });
+    barChart(panel(grid, "Training time", "Total wall clock, including per-epoch evaluation."), {
+      rows: rows.map(function (r) { var o = mk(r); o.value = r.train_time_s; return o; }),
+      format: fmtSecs
     });
   }
 
-  function renderSweep(rows, referenceAccuracy) {
-    var container = document.getElementById("sweep-content");
-    container.innerHTML = "";
+  function renderCurves() {
+    var host = document.getElementById("curves");
+    host.innerHTML = "";
+    if (!DATA.curves) {
+      empty(host, "No training curves yet.",
+        'Rerun <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> and commit ' +
+        '<code>results/01_training_curves.json</code>.');
+      return;
+    }
+    var T = tokens();
+    var keys = Object.keys(DATA.curves);
+    var series = [], maxLen = 0;
+    keys.forEach(function (k, i) {
+      var h = DATA.curves[k];
+      if (!h || !h.length) return;
+      maxLen = Math.max(maxLen, h.length);
+      series.push({
+        key: k,
+        label: k === "full_finetune" ? "Full fine-tune" : "LoRA (r=8)",
+        color: k === "full_finetune" ? T.s1 : T.s2,
+        hist: h
+      });
+    });
+    if (!series.length) return;
 
-    rows.sort(function (a, b) { return a.rank - b.rank; });
+    var xs = [];
+    for (var e = 1; e <= maxLen; e++) xs.push(e);
+    var plotSeries = series.map(function (s) {
+      return {
+        label: s.label, color: s.color,
+        values: xs.map(function (_, i) { return s.hist[i] ? s.hist[i].accuracy : null; })
+      };
+    });
 
-    var table = document.createElement("table");
-    table.className = "results-table";
-    var body = rows.map(function (r) {
-      return "<tr><td><span class='swatch' style='background:" + COLOR.series2 + "'></span>r=" + r.rank + "</td><td>" + fmt(r.trainable_params) + "</td><td>" + pct(r.accuracy) + "</td><td>" + fmt(r.macro_f1) + "</td><td>" + fmt(r.train_time_s) + "</td></tr>";
-    }).join("");
-    table.innerHTML = "<thead><tr><th>Rank</th><th>Trainable params</th><th>Accuracy</th><th>Macro F1</th><th>Train time (s)</th></tr></thead><tbody>" + body + "</tbody>";
-    container.appendChild(table);
+    var grid = document.createElement("div"); grid.className = "charts one"; host.appendChild(grid);
+    var p = panel(grid, "Validation accuracy by epoch",
+      "Full fine-tuning flattens early; LoRA is still climbing when its epoch budget runs out.");
+    legend(p, plotSeries.map(function (s) { return { label: s.label, color: s.color }; }));
+    lineChart(p, {
+      x: xs, series: plotSeries, xLabel: "Epoch", yMinZero: true,
+      yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
+    });
+  }
 
-    if (referenceAccuracy) {
-      var legend = document.createElement("div");
-      legend.className = "legend";
-      legend.innerHTML =
-        "<span class='item'><span class='swatch' style='background:" + COLOR.series2 + "'></span>LoRA</span>" +
-        "<span class='item'><span class='swatch' style='background:" + COLOR.textMuted + "'></span>Full fine-tune (reference)</span>";
-      container.appendChild(legend);
+  function renderSweep() {
+    var host = document.getElementById("sweep");
+    host.innerHTML = "";
+    if (!DATA.sweep || !DATA.sweep.length) {
+      empty(host, "No results yet.",
+        'Run <code>notebooks/02_lora_rank_sweep.ipynb</code> on Colab or Kaggle and commit the generated ' +
+        '<code>results/02_rank_sweep.json</code>, then reload this page.');
+      return;
+    }
+    var T = tokens();
+    var rows = DATA.sweep.slice().sort(function (a, b) { return a.rank - b.rank; });
+    var best = rows.reduce(function (a, b) { return b.accuracy > a.accuracy ? b : a; });
+
+    table(host,
+      ["Rank", "Alpha", "Trainable params", "Accuracy", "Macro F1", "Epochs", "Train time"],
+      rows.map(function (r) {
+        return [
+          { text: "r = " + r.rank + (r === best ? "  ·  best" : ""), color: T.s2 },
+          r.alpha !== undefined ? String(r.alpha) : "—",
+          fmtInt(r.trainable_params),
+          fmtPct(r.accuracy, 1),
+          r.macro_f1 !== undefined ? r.macro_f1.toFixed(3) : "—",
+          r.epochs_run !== undefined ? String(r.epochs_run) : "—",
+          fmtSecs(r.train_time_s)
+        ];
+      }));
+
+    var hr = document.createElement("hr"); hr.className = "divider"; host.appendChild(hr);
+    var grid = document.createElement("div"); grid.className = "charts"; host.appendChild(grid);
+
+    var refAcc = null;
+    if (DATA.baseline) {
+      var full = DATA.baseline.filter(function (r) { return r.method === "full_finetune"; })[0];
+      if (full) refAcc = full.accuracy;
     }
 
-    var grid = document.createElement("div");
-    grid.className = "chart-grid";
-    container.appendChild(grid);
-
-    function panel(title) {
-      var p = document.createElement("div");
-      p.className = "chart-panel";
-      var h3 = document.createElement("h3");
-      h3.textContent = title;
-      p.appendChild(h3);
-      grid.appendChild(p);
-      return p;
+    var accSeries = [{ label: "LoRA", color: T.s2, values: rows.map(function (r) { return r.accuracy; }) }];
+    if (refAcc !== null) {
+      accSeries.push({
+        label: "Full fine-tune", color: T.s1, noMarkers: true,
+        values: rows.map(function () { return refAcc; })
+      });
     }
+    /* Zoomed y-axis here on purpose: the whole question is where the gain flattens,
+       and a zero baseline flattens all four ranks into one line. Values are also
+       in the table above, so nothing is hidden by the crop. */
+    var p1 = panel(grid, "Accuracy vs rank", "Y-axis zoomed to the range in play — see the table for absolute values.");
+    if (accSeries.length > 1) legend(p1, accSeries.map(function (s) { return { label: s.label, color: s.color }; }));
+    lineChart(p1, {
+      x: rows.map(function (r) { return r.rank; }), series: accSeries,
+      xLabel: "Rank (r)", xLog: true, width: 460,
+      yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
+    });
 
-    lineChart(panel("Accuracy vs. rank"), {
+    var p2 = panel(grid, "Trainable parameters vs rank", "Linear in r — each doubling doubles the adapter.");
+    lineChart(p2, {
       x: rows.map(function (r) { return r.rank; }),
-      series: [{ label: "LoRA", color: COLOR.series2, values: rows.map(function (r) { return r.accuracy; }) }],
-      referenceValue: referenceAccuracy || null,
-      referenceLabel: "Full fine-tune",
-      yTickFormatter: pct,
+      series: [{ label: "LoRA", color: T.s2, values: rows.map(function (r) { return r.trainable_params; }) }],
+      xLabel: "Rank (r)", xLog: true, yMinZero: true, width: 460, yFormat: fmtInt
     });
 
-    lineChart(panel("Trainable parameters vs. rank"), {
-      x: rows.map(function (r) { return r.rank; }),
-      series: [{ label: "LoRA", color: COLOR.series2, values: rows.map(function (r) { return r.trainable_params; }) }],
-      yMinAtZero: true,
-      yTickFormatter: fmt,
-    });
-  }
-
-  fetch("results/01_baseline_comparison.json")
-    .then(function (r) { if (!r.ok) throw new Error("not found"); return r.json(); })
-    .then(renderBaseline)
-    .catch(function () {
-      emptyState(
-        document.getElementById("baseline-content"),
-        "No results yet.",
-        "Run <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> on Colab/Kaggle, commit the generated <code>results/01_baseline_comparison.json</code>, then reload this page."
-      );
-    });
-
-  fetch("results/02_rank_sweep.json")
-    .then(function (r) { if (!r.ok) throw new Error("not found"); return r.json(); })
-    .then(function (sweepRows) {
-      // Try to pull the full fine-tune accuracy from 01's results, if it exists, for the reference line.
-      fetch("results/01_baseline_comparison.json")
-        .then(function (r) { return r.ok ? r.json() : []; })
-        .catch(function () { return []; })
-        .then(function (baselineRows) {
-          var full = (baselineRows || []).find(function (r) { return r.method === "full_finetune"; });
-          renderSweep(sweepRows, full ? full.accuracy : null);
+    if (DATA.sweepCurves) {
+      var ranks = Object.keys(DATA.sweepCurves).sort(function (a, b) { return (+a) - (+b); });
+      var maxLen = 0;
+      ranks.forEach(function (k) { maxLen = Math.max(maxLen, (DATA.sweepCurves[k] || []).length); });
+      if (maxLen) {
+        var xs = [];
+        for (var e = 1; e <= maxLen; e++) xs.push(e);
+        /* One entity per rank: emphasise the best, recede the rest — avoids
+           spending four categorical slots on an ordered variable. */
+        var cs = ranks.map(function (k) {
+          var isBest = (+k) === best.rank;
+          return {
+            label: "r = " + k, color: isBest ? T.s2 : T.muted,
+            values: xs.map(function (_, i) {
+              var h = DATA.sweepCurves[k][i];
+              return h ? h.accuracy : null;
+            })
+          };
         });
-    })
-    .catch(function () {
-      emptyState(
-        document.getElementById("sweep-content"),
-        "No results yet.",
-        "Run <code>notebooks/02_lora_rank_sweep.ipynb</code> on Colab/Kaggle, commit the generated <code>results/02_rank_sweep.json</code>, then reload this page."
-      );
-    });
+        var g2 = document.createElement("div"); g2.className = "charts one"; host.appendChild(g2);
+        var p3 = panel(g2, "Convergence by rank", "Best rank highlighted; the others recede.");
+        legend(p3, [{ label: "r = " + best.rank + " (best)", color: T.s2 }, { label: "other ranks", color: T.muted }]);
+        lineChart(p3, {
+          x: xs, series: cs, xLabel: "Epoch", yMinZero: true,
+          yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
+        });
+      }
+    }
+  }
 
+  function renderAll() {
+    renderHero();
+    renderBaseline();
+    renderCurves();
+    renderSweep();
+  }
+
+  function grab(path, key) {
+    return fetch(path)
+      .then(function (r) { if (!r.ok) throw new Error("missing"); return r.json(); })
+      .then(function (j) { DATA[key] = j; })
+      .catch(function () { DATA[key] = null; });
+  }
+
+  Promise.all([
+    grab("results/01_baseline_comparison.json", "baseline"),
+    grab("results/01_training_curves.json", "curves"),
+    grab("results/02_rank_sweep.json", "sweep"),
+    grab("results/02_rank_sweep_curves.json", "sweepCurves")
+  ]).then(renderAll);
 })();
 </script>
 </body>
