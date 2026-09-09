@@ -1,9 +1,0 @@
-transformers>=4.44
-datasets>=2.20
-peft>=0.11
-accelerate>=0.31
-evaluate>=0.4
-scikit-learn>=1.4
-torch>=2.2
-pandas>=2.2
-matplotlib>=3.8
