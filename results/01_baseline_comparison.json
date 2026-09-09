@@ -1,0 +1,20 @@
+[
+  {
+    "method": "full_finetune",
+    "trainable_params": 109541453,
+    "trainable_pct": 100.0,
+    "accuracy": 0.8577922077922078,
+    "macro_f1": 0.8485122912955144,
+    "train_time_s": 366.6,
+    "peak_mem_mb": 2155.4
+  },
+  {
+    "method": "lora_r8",
+    "trainable_params": 354125,
+    "trainable_pct": 0.322,
+    "accuracy": 0.46915584415584416,
+    "macro_f1": 0.4171062927943341,
+    "train_time_s": 296.5,
+    "peak_mem_mb": 2575.1
+  }
+]
