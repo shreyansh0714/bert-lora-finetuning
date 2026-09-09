@@ -19,8 +19,14 @@ jobs:
       # Only the from-scratch LoRA module (src/) is tested here — it depends on torch alone.
       # The comparison notebooks need the full transformers/peft/datasets stack and a GPU
       # to run in reasonable time, so they're run manually on Colab/Kaggle, not in CI.
-      - name: Install minimal deps
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu pytest
+      # Two separate installs on purpose: --index-url *replaces* PyPI rather than
+      # adding to it, so combining these sends pip looking for pytest on
+      # download.pytorch.org, which does not host it.
+      - name: Install torch (CPU wheel)
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install pytest
+        run: pip install pytest
 
       - name: Run from-scratch LoRA tests
         run: pytest tests/ -v
