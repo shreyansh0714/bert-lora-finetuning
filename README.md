@@ -68,6 +68,11 @@ bert-lora-finetuning/
 1. **Notebooks 01 and 02** need a GPU — upload to [Colab](https://colab.research.google.com) or
    [Kaggle](https://kaggle.com/code) with a GPU runtime. Each notebook installs its own dependencies
    in its first cell.
+   - **On Kaggle, turn Internet on first**: sidebar → *Settings* → *Internet: On* (requires a
+     phone-verified account), and set *Accelerator* to a GPU. With Internet off, both pip and the
+     HuggingFace Hub fail with `Temporary failure in name resolution`, and pip then reports every
+     package as `from versions: none` — that's DNS being unreachable, not a bad version pin.
+     Notebook 02's preflight cell reports which mode you're in before anything else runs.
    - Run `01` first, note the printed full-fine-tune accuracy, paste it into `02`'s
      `FULL_FINETUNE_ACCURACY` constant so the rank-sweep plot has a reference line.
    - `01` and `02` don't depend on each other's *execution* — if you're splitting this across two
