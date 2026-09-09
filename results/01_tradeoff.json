@@ -1,0 +1,11 @@
+{
+  "accuracy_full": 0.9266,
+  "accuracy_lora": 0.8536,
+  "accuracy_gap_pts": 7.31,
+  "accuracy_retained_pct": 92.12,
+  "param_fraction_pct": 0.3233,
+  "param_reduction_x": 309.3,
+  "time_ratio": 1.55,
+  "memory_ratio": 0.61,
+  "steps_ratio": 2.0
+}
