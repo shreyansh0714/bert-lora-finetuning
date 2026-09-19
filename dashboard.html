@@ -134,6 +134,14 @@
   .empty { padding: 34px 32px; color: var(--text-secondary); font-size: 14px; }
   .empty b { display: block; color: var(--text-primary); font-weight: 600; margin-bottom: 6px; font-size: 15px; }
 
+  .plain { padding: 20px 26px; font-size: 14.5px; color: var(--text-secondary); max-width: 92ch; }
+  .plain p { margin: 0 0 10px; } .plain p:last-child { margin: 0; }
+  .plain strong { color: var(--text-primary); font-weight: 600; }
+  .note { border-top: 1px solid var(--gridline); max-width: none; }
+  .gloss { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 32px; margin: 0; }
+  .gloss dt { color: var(--text-primary); font-weight: 600; font-size: 14px; }
+  .gloss dd { margin: 2px 0 0; font-size: 13.5px; }
+
   footer { color: var(--text-muted); font-size: 12.5px; border-top: 1px solid var(--border); padding-top: 20px; max-width: 80ch; }
 
   #tip {
@@ -149,6 +157,7 @@
     .hero-grid { grid-template-columns: 1fr; gap: 26px; }
     .tiles { grid-template-columns: 1fr; gap: 16px; }
     .charts { grid-template-columns: 1fr; }
+    .gloss { grid-template-columns: 1fr; }
     .hero-fig { font-size: 54px; }
   }
 </style>
@@ -160,36 +169,71 @@
     <div>
       <h1>Full fine-tuning vs LoRA</h1>
       <p class="lede">
-        <code>bert-base-uncased</code> on Banking77 — 77-class intent classification. Both methods
-        trained to convergence on identical data, then measured on a held-out test set.
-        This page reads <code>results/*.json</code> directly; nothing here is typed in by hand.
+        We taught a ready-made language model (Google's BERT) to sort bank customers' messages into 77
+        categories, such as “card lost” or “refund not showing”. We tried two ways of teaching it, and
+        measured how accurate each one is and how much it costs. Every number on this page is read straight
+        from the result files in <code>results/</code>; nothing is typed in by hand.
       </p>
       <a class="repo" href="https://github.com/shreyansh0714/bert-lora-finetuning">github.com/shreyansh0714/bert-lora-finetuning</a>
     </div>
     <button class="toggle" id="themeBtn" type="button">Dark</button>
   </header>
 
+  <section>
+    <h2>Key words, in plain English</h2>
+    <div class="card plain">
+      <dl class="gloss">
+        <div><dt>Model (BERT)</dt><dd>A pre-trained language model: about 110 million adjustable numbers, called parameters, that already understand English.</dd></div>
+        <div><dt>Full fine-tuning</dt><dd>Teach the new task by adjusting all 110 million numbers. Accurate, but it needs a lot of memory, and every task needs its own full copy of the model.</dd></div>
+        <div><dt>LoRA</dt><dd>Freeze the model and train only a small add-on next to it. Far fewer numbers to adjust and far less to store.</dd></div>
+        <div><dt>Size of the add-on (rank, r)</dt><dd>How big the LoRA add-on is. Doubling r roughly doubles the add-on.</dd></div>
+        <div><dt>Pass (epoch)</dt><dd>One full pass through all the training examples. More passes means more practice.</dd></div>
+        <div><dt>Test accuracy</dt><dd>The share of 3,080 messages the model had never seen that it puts in the right category.</dd></div>
+      </dl>
+    </div>
+  </section>
+
   <section id="heroSection"></section>
 
-  <section id="baselineSection">
-    <h2>Method comparison</h2>
-    <p class="sub">From <code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code> — same data, same
-      protocol, two fine-tuning methods. Each ran until validation accuracy stopped improving.</p>
+  <section>
+    <h2>Stage 1 — Two ways of teaching the model</h2>
+    <p class="sub">Arnav's part (<code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code>). The same
+      model and the same data, taught both ways. Each one kept practising until it stopped getting better.</p>
     <div class="card" id="baseline"></div>
   </section>
 
-  <section id="curveSection">
-    <h2>Convergence</h2>
-    <p class="sub">Validation accuracy after each epoch. The gap in the table above is partly a gap in
-      training budget — this is where you can see it.</p>
+  <section>
+    <h2>Stage 1 — How fast each method learned</h2>
+    <p class="sub">Accuracy after each pass through the data. Full fine-tuning levels off early. LoRA is still
+      improving when it runs out of passes, so its score is a floor, not its best possible.</p>
     <div class="card" id="curves"></div>
   </section>
 
-  <section id="sweepSection">
-    <h2>LoRA rank sweep</h2>
-    <p class="sub">From <code>notebooks/02_lora_rank_sweep.ipynb</code> — LoRA trained independently at
-      r = 4, 8, 16, 32, holding <code>alpha/r</code> constant so only the rank varies.</p>
+  <section>
+    <h2>Stage 2, Run 1 — LoRA at four sizes, 4 passes each</h2>
+    <p class="sub">Our first attempt (<code>notebooks/02_lora_rank_sweep.ipynb</code>). To find out how big
+      the add-on needs to be, we trained it at four sizes, giving each size only 4 passes through the data.</p>
+    <div class="card" id="run1"></div>
+  </section>
+
+  <section>
+    <h2>Stage 2, Run 2 — the same four sizes, more practice</h2>
+    <p class="sub">Same sizes, same settings. The only change: up to 20 passes, and each model stops on its
+      own once it stops improving.</p>
     <div class="card" id="sweep"></div>
+  </section>
+
+  <section>
+    <h2>Run 1 vs Run 2</h2>
+    <p class="sub">Both runs on one chart. The gap between the two lines is what extra practice bought. The
+      slope along each line is what a bigger add-on bought.</p>
+    <div class="card" id="compare"></div>
+  </section>
+
+  <section>
+    <h2>Summary</h2>
+    <p class="sub">Full fine-tuning next to the best LoRA size, before and after we gave it enough practice.</p>
+    <div class="card" id="summary"></div>
   </section>
 
   <footer>
@@ -260,8 +304,9 @@
   }
   function fmtSecs(s) {
     if (s === null || s === undefined || isNaN(s)) return "—";
-    if (s < 90) return s.toFixed(0) + "s";
-    var m = Math.floor(s / 60), r = Math.round(s % 60);
+    s = Math.round(s);
+    if (s < 90) return s + "s";
+    var m = Math.floor(s / 60), r = s % 60;
     return m + "m " + (r < 10 ? "0" : "") + r + "s";
   }
 
@@ -396,6 +441,7 @@
       var span = (rawMax - rawMin) || Math.abs(rawMax) || 1;
       lo = rawMin - span * 0.15; hi = rawMax + span * 0.15;
       if (rawMin >= 0 && lo < 0) lo = 0;
+      if (opts.yMax !== undefined && hi > opts.yMax) hi = opts.yMax;
     }
     var nice = niceTicks(lo, hi, 5);
     var ticks = nice.ticks, minY = nice.min, maxY = nice.max;
@@ -579,22 +625,49 @@
   }
 
   /* ------------------------------------------------------------- rendering */
-  var DATA = { baseline: null, curves: null, sweep: null, sweepCurves: null };
+  var DATA = { baseline: null, curves: null, sweep: null, sweepCurves: null, run1: null };
+
+  function pct0(v) { return (v * 100).toFixed(0) + "%"; }
+  function byRank(rows) { return (rows || []).slice().sort(function (a, b) { return a.rank - b.rank; }); }
+  function rankRow(rows, r) { return (rows || []).filter(function (x) { return x.rank === r; })[0]; }
+  function bestRow(rows) { return rows.reduce(function (a, b) { return b.accuracy > a.accuracy ? b : a; }); }
+  function fullRow() {
+    return DATA.baseline ? DATA.baseline.filter(function (r) { return r.method === "full_finetune"; })[0] : null;
+  }
+  function note(host, html) {
+    var d = document.createElement("div"); d.className = "plain note"; d.innerHTML = html; host.appendChild(d);
+  }
+  function divider(host) { var hr = document.createElement("hr"); hr.className = "divider"; host.appendChild(hr); }
+  function oneCol(host) { var g = document.createElement("div"); g.className = "charts one"; host.appendChild(g); return g; }
+
+  /* Accuracy by rank for one or more runs, with full fine-tuning as a reference line. */
+  function rankAccChart(host, title, caption, runs) {
+    var T = tokens(), full = fullRow();
+    var xs = byRank(runs[0].rows).map(function (r) { return r.rank; });
+    var series = runs.map(function (run) {
+      return { label: run.label, color: run.color,
+               values: xs.map(function (x) { var r = rankRow(run.rows, x); return r ? r.accuracy : null; }) };
+    });
+    if (full) series.push({ label: "Full fine-tune", color: T.s1, noMarkers: true,
+                            values: xs.map(function () { return full.accuracy; }) });
+    var p = panel(host, title, caption);
+    legend(p, series.map(function (s) { return { label: s.label, color: s.color }; }));
+    lineChart(p, { x: xs, series: series, xLabel: "Size of the LoRA add-on (rank r)", xLog: true, yMax: 1, yFormat: pct0 });
+  }
 
   function renderHero() {
     var host = document.getElementById("heroSection");
     host.innerHTML = "";
-    if (!DATA.baseline) return;
-    var T = tokens();
-    var full = DATA.baseline.filter(function (r) { return r.method === "full_finetune"; })[0];
-    var lora = DATA.baseline.filter(function (r) { return r.method !== "full_finetune"; })[0];
+    var full = fullRow();
+    var lora = DATA.baseline ? DATA.baseline.filter(function (r) { return r.method !== "full_finetune"; })[0] : null;
     if (!full || !lora) return;
 
     var retained = lora.accuracy / full.accuracy;
     var reduction = full.trainable_params / lora.trainable_params;
     var memSaved = (full.peak_mem_mb && lora.peak_mem_mb) ? 1 - lora.peak_mem_mb / full.peak_mem_mb : null;
     var timeRatio = lora.train_time_s / full.train_time_s;
-    var gapPts = (full.accuracy - lora.accuracy) * 100;
+    var fasterPerPass = full.epochs_run && lora.epochs_run &&
+      lora.train_time_s / lora.epochs_run < full.train_time_s / full.epochs_run;
 
     var card = document.createElement("div");
     card.className = "card hero";
@@ -602,26 +675,26 @@
       '<div class="hero-grid">' +
         '<div>' +
           '<div class="hero-fig">' + (retained * 100).toFixed(0) + '%</div>' +
-          '<div class="hero-label">of full fine-tuning accuracy, retained by LoRA</div>' +
+          '<div class="hero-label">of full fine-tuning’s accuracy, kept by LoRA while training only a small add-on (Stage 1)</div>' +
         '</div>' +
         '<div class="tiles">' +
-          '<div><div class="tile-label">Trainable parameters</div>' +
-            '<div class="tile-value">' + reduction.toFixed(0) + '&times;</div>' +
-            '<div class="tile-note">fewer &mdash; ' + fmtInt(lora.trainable_params) + ' vs ' + fmtInt(full.trainable_params) + '</div></div>' +
-          '<div><div class="tile-label">Peak GPU memory</div>' +
-            '<div class="tile-value">' + (memSaved === null ? '&mdash;' : '&minus;' + (memSaved * 100).toFixed(0) + '%') + '</div>' +
-            '<div class="tile-note">' + fmtInt(lora.peak_mem_mb) + ' MB vs ' + fmtInt(full.peak_mem_mb) + ' MB</div></div>' +
-          '<div><div class="tile-label">Wall-clock time</div>' +
-            '<div class="tile-value">' + timeRatio.toFixed(2) + '&times;</div>' +
-            '<div class="tile-note">' + (timeRatio > 1 ? 'longer' : 'shorter') + ' &mdash; ' + fmtSecs(lora.train_time_s) + ' vs ' + fmtSecs(full.train_time_s) + '</div></div>' +
+          '<div><div class="tile-label">Numbers trained</div>' +
+            '<div class="tile-value">' + reduction.toFixed(0) + '&times; fewer</div>' +
+            '<div class="tile-note">' + fmtInt(lora.trainable_params) + ' instead of ' + fmtInt(full.trainable_params) + '</div></div>' +
+          '<div><div class="tile-label">Graphics-card memory</div>' +
+            '<div class="tile-value">' + (memSaved === null ? '&mdash;' : (memSaved * 100).toFixed(0) + '% less') + '</div>' +
+            '<div class="tile-note">' + fmtInt(lora.peak_mem_mb) + ' MB instead of ' + fmtInt(full.peak_mem_mb) + ' MB</div></div>' +
+          '<div><div class="tile-label">Training time</div>' +
+            '<div class="tile-value">' + timeRatio.toFixed(2) + '&times; ' + (timeRatio > 1 ? 'longer' : 'shorter') + '</div>' +
+            '<div class="tile-note">' + fmtSecs(lora.train_time_s) + ' instead of ' + fmtSecs(full.train_time_s) + '</div></div>' +
         '</div>' +
       '</div>' +
-      '<p class="finding">LoRA reached <strong>' + fmtPct(lora.accuracy) + '</strong> test accuracy against full ' +
-        'fine-tuning’s <strong>' + fmtPct(full.accuracy) + '</strong> — a gap of ' + gapPts.toFixed(1) + ' points — while ' +
-        'training <strong>' + (lora.trainable_params / full.trainable_params * 100).toFixed(2) + '%</strong> of the parameters. ' +
+      '<p class="finding"><strong>In plain words:</strong> LoRA put <strong>' + fmtPct(lora.accuracy) + '</strong> of the test messages in ' +
+        'the right category, against <strong>' + fmtPct(full.accuracy) + '</strong> for full fine-tuning, while adjusting only <strong>' +
+        (lora.trainable_params / full.trainable_params * 100).toFixed(2) + '%</strong> as many numbers. ' +
         (full.epochs_run && lora.epochs_run
-          ? 'It needed <strong>' + lora.epochs_run + ' epochs</strong> to full fine-tuning’s <strong>' + full.epochs_run + '</strong>, ' +
-            'which is where the extra wall-clock time goes: fewer gradients per step, more steps.'
+          ? 'It needed <strong>' + lora.epochs_run + ' passes</strong> through the data to full fine-tuning’s <strong>' + full.epochs_run +
+            '</strong>' + (fasterPerPass ? ', which is why it took longer overall even though each pass was quicker.' : '.')
           : '') +
       '</p>';
     host.appendChild(card);
@@ -642,7 +715,7 @@
     var nameFor = function (r) { return r.method === "full_finetune" ? "Full fine-tune" : "LoRA (r=8)"; };
 
     table(host,
-      ["Method", "Trainable params", "% of total", "Accuracy", "Macro F1", "Epochs", "Train time", "Peak GPU mem"],
+      ["Method", "Numbers trained", "% of model", "Accuracy", "Macro F1", "Passes used", "Training time", "Memory"],
       rows.map(function (r) {
         return [
           { text: nameFor(r), color: colorFor(r) },
@@ -656,24 +729,23 @@
         ];
       }));
 
-    var hr = document.createElement("hr"); hr.className = "divider"; host.appendChild(hr);
-
+    divider(host);
     var grid = document.createElement("div"); grid.className = "charts"; host.appendChild(grid);
     var mk = function (r) { return { label: nameFor(r), color: colorFor(r) }; };
 
-    barChart(panel(grid, "Trainable parameters", "Log scale — the linear difference is 300-fold."), {
+    barChart(panel(grid, "Numbers trained", "Log scale, otherwise the LoRA bar would be invisible."), {
       rows: rows.map(function (r) { var o = mk(r); o.value = r.trainable_params; return o; }),
       format: fmtInt, logScale: true
     });
-    barChart(panel(grid, "Test accuracy", "Held-out Banking77 test split, 3,080 examples."), {
+    barChart(panel(grid, "Test accuracy", "Share of 3,080 unseen messages put in the right category."), {
       rows: rows.map(function (r) { var o = mk(r); o.value = r.accuracy; return o; }),
       format: function (v) { return fmtPct(v, 1); }
     });
-    barChart(panel(grid, "Peak GPU memory", "Highest single-device allocation during training."), {
+    barChart(panel(grid, "Graphics-card memory", "The most memory training needed at any one moment."), {
       rows: rows.map(function (r) { var o = mk(r); o.value = r.peak_mem_mb; return o; }),
       format: function (v) { return fmtInt(v) + " MB"; }
     });
-    barChart(panel(grid, "Training time", "Total wall clock, including per-epoch evaluation."), {
+    barChart(panel(grid, "Training time", "Total time to train, including a progress check after each pass."), {
       rows: rows.map(function (r) { var o = mk(r); o.value = r.train_time_s; return o; }),
       format: fmtSecs
     });
@@ -689,38 +761,54 @@
       return;
     }
     var T = tokens();
-    var keys = Object.keys(DATA.curves);
     var series = [], maxLen = 0;
-    keys.forEach(function (k, i) {
+    Object.keys(DATA.curves).forEach(function (k) {
       var h = DATA.curves[k];
       if (!h || !h.length) return;
       maxLen = Math.max(maxLen, h.length);
       series.push({
-        key: k,
         label: k === "full_finetune" ? "Full fine-tune" : "LoRA (r=8)",
         color: k === "full_finetune" ? T.s1 : T.s2,
-        hist: h
+        values: null, hist: h
       });
     });
     if (!series.length) return;
-
     var xs = [];
     for (var e = 1; e <= maxLen; e++) xs.push(e);
-    var plotSeries = series.map(function (s) {
-      return {
-        label: s.label, color: s.color,
-        values: xs.map(function (_, i) { return s.hist[i] ? s.hist[i].accuracy : null; })
-      };
-    });
+    series.forEach(function (s) { s.values = xs.map(function (_, i) { return s.hist[i] ? s.hist[i].accuracy : null; }); });
 
-    var grid = document.createElement("div"); grid.className = "charts one"; host.appendChild(grid);
-    var p = panel(grid, "Validation accuracy by epoch",
-      "Full fine-tuning flattens early; LoRA is still climbing when its epoch budget runs out.");
-    legend(p, plotSeries.map(function (s) { return { label: s.label, color: s.color }; }));
-    lineChart(p, {
-      x: xs, series: plotSeries, xLabel: "Epoch", yMinZero: true,
-      yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
-    });
+    var p = panel(oneCol(host), "Accuracy after each pass",
+      "Checked on a separate practice set after every pass, not on the final test messages.");
+    legend(p, series.map(function (s) { return { label: s.label, color: s.color }; }));
+    lineChart(p, { x: xs, series: series, xLabel: "Pass (epoch)", yMinZero: true, yFormat: pct0 });
+  }
+
+  function renderRun1() {
+    var host = document.getElementById("run1");
+    host.innerHTML = "";
+    if (!DATA.run1 || !DATA.run1.length) {
+      empty(host, "No Run 1 results.", 'Commit <code>results/02_rank_sweep_4ep.json</code> and reload.');
+      return;
+    }
+    var T = tokens(), rows = byRank(DATA.run1), full = fullRow();
+    var lo = rows[0], hi = rows[rows.length - 1];
+
+    table(host, ["LoRA size", "Numbers trained", "Accuracy", "Passes used", "Training time"],
+      rows.map(function (r) {
+        return [{ text: "r = " + r.rank, color: T.muted }, fmtInt(r.trainable_params),
+                fmtPct(r.accuracy, 1), "4", fmtSecs(r.train_time_s)];
+      }));
+    divider(host);
+    rankAccChart(oneCol(host), "Accuracy by add-on size, after 4 passes",
+      "Still climbing steeply at the largest size, with no sign of levelling off.",
+      [{ label: "Run 1 (4 passes)", color: T.muted, rows: rows }]);
+    note(host,
+      '<p><strong>In plain words:</strong> bigger add-ons scored higher, from ' + fmtPct(lo.accuracy) + ' at size ' + lo.rank +
+      ' to ' + fmtPct(hi.accuracy) + ' at size ' + hi.rank + '. ' +
+      (full ? 'But even the biggest was ' + ((full.accuracy - hi.accuracy) * 100).toFixed(0) +
+              ' points below full fine-tuning, and ' : 'But ') + 'the line was still rising steeply.</p>' +
+      '<p><strong>Why we did not trust this result:</strong> a model that has reached its limit levels off. These had not. ' +
+      'They had simply not practised enough. So instead of making the add-on bigger, we gave every size more practice. That is Run 2.</p>');
   }
 
   function renderSweep() {
@@ -732,56 +820,31 @@
         '<code>results/02_rank_sweep.json</code>, then reload this page.');
       return;
     }
-    var T = tokens();
-    var rows = DATA.sweep.slice().sort(function (a, b) { return a.rank - b.rank; });
-    var best = rows.reduce(function (a, b) { return b.accuracy > a.accuracy ? b : a; });
+    var T = tokens(), rows = byRank(DATA.sweep), best = bestRow(rows);
 
-    table(host,
-      ["Rank", "Alpha", "Trainable params", "Accuracy", "Macro F1", "Epochs", "Train time"],
+    table(host, ["LoRA size", "Numbers trained", "Accuracy", "Macro F1", "Passes used", "Training time"],
       rows.map(function (r) {
         return [
           { text: "r = " + r.rank + (r === best ? "  ·  best" : ""), color: T.s2 },
-          r.alpha !== undefined ? String(r.alpha) : "—",
-          fmtInt(r.trainable_params),
-          fmtPct(r.accuracy, 1),
+          fmtInt(r.trainable_params), fmtPct(r.accuracy, 1),
           r.macro_f1 !== undefined ? r.macro_f1.toFixed(3) : "—",
           r.epochs_run !== undefined ? String(r.epochs_run) : "—",
           fmtSecs(r.train_time_s)
         ];
       }));
+    divider(host);
+    var g = oneCol(host);
 
-    var hr = document.createElement("hr"); hr.className = "divider"; host.appendChild(hr);
-    var grid = document.createElement("div"); grid.className = "charts"; host.appendChild(grid);
+    /* Zoomed y-axis on purpose: a zero baseline flattens all four sizes into one line.
+       Exact values are in the table above, so nothing is hidden by the crop. */
+    rankAccChart(g, "Accuracy by add-on size, with more practice",
+      "Zoomed in to the range that matters; exact values are in the table above.",
+      [{ label: "Run 2 (up to 20 passes)", color: T.s2, rows: rows }]);
 
-    var refAcc = null;
-    if (DATA.baseline) {
-      var full = DATA.baseline.filter(function (r) { return r.method === "full_finetune"; })[0];
-      if (full) refAcc = full.accuracy;
-    }
-
-    var accSeries = [{ label: "LoRA", color: T.s2, values: rows.map(function (r) { return r.accuracy; }) }];
-    if (refAcc !== null) {
-      accSeries.push({
-        label: "Full fine-tune", color: T.s1, noMarkers: true,
-        values: rows.map(function () { return refAcc; })
-      });
-    }
-    /* Zoomed y-axis here on purpose: the whole question is where the gain flattens,
-       and a zero baseline flattens all four ranks into one line. Values are also
-       in the table above, so nothing is hidden by the crop. */
-    var p1 = panel(grid, "Accuracy vs rank", "Y-axis zoomed to the range in play — see the table for absolute values.");
-    if (accSeries.length > 1) legend(p1, accSeries.map(function (s) { return { label: s.label, color: s.color }; }));
-    lineChart(p1, {
-      x: rows.map(function (r) { return r.rank; }), series: accSeries,
-      xLabel: "Rank (r)", xLog: true, width: 460,
-      yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
-    });
-
-    var p2 = panel(grid, "Trainable parameters vs rank", "Linear in r — each doubling doubles the adapter.");
-    lineChart(p2, {
+    lineChart(panel(g, "Numbers trained by add-on size", "Each doubling of the size doubles the add-on."), {
       x: rows.map(function (r) { return r.rank; }),
       series: [{ label: "LoRA", color: T.s2, values: rows.map(function (r) { return r.trainable_params; }) }],
-      xLabel: "Rank (r)", xLog: true, yMinZero: true, width: 460, yFormat: fmtInt
+      xLabel: "Size of the LoRA add-on (rank r)", xLog: true, yMinZero: true, yFormat: fmtInt
     });
 
     if (DATA.sweepCurves) {
@@ -791,34 +854,112 @@
       if (maxLen) {
         var xs = [];
         for (var e = 1; e <= maxLen; e++) xs.push(e);
-        /* One entity per rank: emphasise the best, recede the rest — avoids
-           spending four categorical slots on an ordered variable. */
         var cs = ranks.map(function (k) {
-          var isBest = (+k) === best.rank;
           return {
-            label: "r = " + k, color: isBest ? T.s2 : T.muted,
-            values: xs.map(function (_, i) {
-              var h = DATA.sweepCurves[k][i];
-              return h ? h.accuracy : null;
-            })
+            label: "r = " + k, color: (+k) === best.rank ? T.s2 : T.muted,
+            values: xs.map(function (_, i) { var h = DATA.sweepCurves[k][i]; return h ? h.accuracy : null; })
           };
         });
-        var g2 = document.createElement("div"); g2.className = "charts one"; host.appendChild(g2);
-        var p3 = panel(g2, "Convergence by rank", "Best rank highlighted; the others recede.");
-        legend(p3, [{ label: "r = " + best.rank + " (best)", color: T.s2 }, { label: "other ranks", color: T.muted }]);
-        lineChart(p3, {
-          x: xs, series: cs, xLabel: "Epoch", yMinZero: true,
-          yFormat: function (v) { return (v * 100).toFixed(0) + "%"; }
-        });
+        var p3 = panel(g, "Accuracy after each pass, by size",
+          "A line that ends early belongs to a model that stopped on its own once it stopped improving.");
+        legend(p3, [{ label: "r = " + best.rank + " (best)", color: T.s2 }, { label: "other sizes", color: T.muted }]);
+        lineChart(p3, { x: xs, series: cs, xLabel: "Pass (epoch)", yMinZero: true, yFormat: pct0 });
       }
     }
+
+    /* Accuracy points bought per 100k added numbers, for each doubling of the size. */
+    var yield_ = [];
+    for (var i = 1; i < rows.length; i++) {
+      yield_.push((rows[i].accuracy - rows[i - 1].accuracy) * 100 /
+                  ((rows[i].trainable_params - rows[i - 1].trainable_params) / 1e5));
+    }
+    var maxEp = Math.max.apply(null, rows.map(function (r) { return r.epochs_run || 0; }));
+    var early = rows.filter(function (r) { return r.epochs_run && r.epochs_run < maxEp; });
+    var html = '<p><strong>In plain words:</strong> with more practice every size improved sharply. The smallest now scores ' +
+      fmtPct(rows[0].accuracy) + ' and the largest ' + fmtPct(rows[rows.length - 1].accuracy) + '. ';
+    if (yield_.length > 1 && yield_[yield_.length - 1] > 0) {
+      html += 'Bigger still helps, but less and less: in the last step up, each extra number trained bought about <strong>' +
+              Math.round(yield_[0] / yield_[yield_.length - 1]) + '&times; less</strong> accuracy than in the first.';
+    }
+    html += '</p>';
+    if (early.length) {
+      html += '<p><strong>One caution:</strong> only size ' + early.map(function (r) { return r.rank; }).join(", ") +
+              ' stopped on its own, after ' + early.map(function (r) { return r.epochs_run; }).join(", ") +
+              ' passes. The other sizes used all ' + maxEp + ' passes and were still slowly improving, so their scores are a floor.</p>';
+    }
+    note(host, html);
+  }
+
+  function renderCompare() {
+    var host = document.getElementById("compare");
+    host.innerHTML = "";
+    if (!DATA.run1 || !DATA.sweep) {
+      empty(host, "Needs both runs.",
+        'Commit <code>results/02_rank_sweep_4ep.json</code> and <code>results/02_rank_sweep.json</code>, then reload.');
+      return;
+    }
+    var T = tokens(), r1 = byRank(DATA.run1), r2 = byRank(DATA.sweep);
+    rankAccChart(oneCol(host), "Run 1 vs Run 2: accuracy by add-on size",
+      "Same sizes, same settings. Only the amount of practice differs.",
+      [{ label: "Run 2 (up to 20 passes)", color: T.s2, rows: r2 },
+       { label: "Run 1 (4 passes)", color: T.muted, rows: r1 }]);
+
+    var gains = r2.map(function (b) { var a = rankRow(r1, b.rank); return a ? (b.accuracy - a.accuracy) * 100 : null; })
+                  .filter(function (x) { return x !== null; });
+    var small2 = r2[0], big1 = r1[r1.length - 1];
+    note(host,
+      '<p><strong>In plain words:</strong> at every size, more practice added between <strong>' +
+      Math.min.apply(null, gains).toFixed(1) + '</strong> and <strong>' + Math.max.apply(null, gains).toFixed(1) +
+      ' points</strong> of accuracy, without changing the add-on at all.</p>' +
+      '<p>The smallest add-on with enough practice (size ' + small2.rank + ', ' + fmtPct(small2.accuracy) +
+      ') beat the biggest add-on with too little (size ' + big1.rank + ', ' + fmtPct(big1.accuracy) + '), while training ' +
+      (big1.trainable_params / small2.trainable_params).toFixed(0) + '&times; fewer numbers. <strong>Practice mattered far more than size.</strong></p>');
+  }
+
+  function renderSummary() {
+    var host = document.getElementById("summary");
+    host.innerHTML = "";
+    var full = fullRow();
+    if (!full || !DATA.sweep || !DATA.sweep.length) {
+      empty(host, "Needs Stage 1 and Run 2 results.",
+        'Commit <code>results/01_baseline_comparison.json</code> and <code>results/02_rank_sweep.json</code>, then reload.');
+      return;
+    }
+    var T = tokens(), best = bestRow(DATA.sweep), before = rankRow(DATA.run1, best.rank);
+    var rows = [{ label: "Full fine-tune", color: T.s1, d: full }];
+    if (before) rows.push({ label: "LoRA r=" + best.rank + ", Run 1", color: T.muted, d: before });
+    rows.push({ label: "LoRA r=" + best.rank + ", Run 2", color: T.s2, d: best });
+
+    var grid = document.createElement("div"); grid.className = "charts"; host.appendChild(grid);
+    function bars(title, caption, key, fmt, log) {
+      barChart(panel(grid, title, caption), {
+        rows: rows.map(function (r) { return { label: r.label, color: r.color, value: r.d[key] }; }),
+        format: fmt, logScale: log
+      });
+    }
+    bars("Numbers trained", "Log scale, otherwise the LoRA bars would be invisible.", "trainable_params", fmtInt, true);
+    bars("Test accuracy", "Share of 3,080 unseen messages put in the right category.", "accuracy", function (v) { return fmtPct(v, 1); });
+    bars("Graphics-card memory", "The most memory training needed at any one moment.", "peak_mem_mb", function (v) { return fmtInt(v) + " MB"; });
+    bars("Training time", "Total time to train.", "train_time_s", fmtSecs);
+
+    note(host,
+      '<p><strong>The bottom line:</strong> the small LoRA add-on (size ' + best.rank + ') got <strong>' +
+      (100 * best.accuracy / full.accuracy).toFixed(1) + '%</strong> of full fine-tuning’s accuracy while adjusting only <strong>' +
+      (100 * best.trainable_params / full.trainable_params).toFixed(1) + '%</strong> as many numbers and using <strong>' +
+      (100 * (1 - best.peak_mem_mb / full.peak_mem_mb)).toFixed(1) + '% less</strong> graphics-card memory. The price was training time: ' +
+      (best.train_time_s / full.train_time_s).toFixed(2) + '&times; as long.</p>' +
+      (before ? '<p><strong>The lesson from the two runs:</strong> judge LoRA only after it has had enough practice. With too little, ' +
+                'the same add-on looked far worse (' + fmtPct(before.accuracy) + ') than it really is (' + fmtPct(best.accuracy) + ').</p>' : ''));
   }
 
   function renderAll() {
     renderHero();
     renderBaseline();
     renderCurves();
+    renderRun1();
     renderSweep();
+    renderCompare();
+    renderSummary();
   }
 
   function grab(path, key) {
@@ -832,7 +973,8 @@
     grab("results/01_baseline_comparison.json", "baseline"),
     grab("results/01_training_curves.json", "curves"),
     grab("results/02_rank_sweep.json", "sweep"),
-    grab("results/02_rank_sweep_curves.json", "sweepCurves")
+    grab("results/02_rank_sweep_curves.json", "sweepCurves"),
+    grab("results/02_rank_sweep_4ep.json", "run1")
   ]).then(renderAll);
 })();
 </script>
