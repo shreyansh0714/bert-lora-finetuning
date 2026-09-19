@@ -19,7 +19,9 @@ citing it: same model, same data, same protocol, both methods, real numbers.
 
 ## Results
 
-**Full fine-tune vs. LoRA (r=8)** — from `notebooks/01_baseline_full_finetune_vs_lora.ipynb`:
+### Stage 1 — full fine-tuning vs. LoRA at r=8
+
+From `notebooks/01_baseline_full_finetune_vs_lora.ipynb`:
 
 | Method | Trainable params | % of total | Accuracy | Macro F1 | Epochs | Train time | Peak GPU mem |
 |---|---|---|---|---|---|---|---|
@@ -44,16 +46,129 @@ essentially flat from epoch 5 onward. LoRA is still improving at epoch 20, where
 so **85.4% is a lower bound, not a converged value**, and some unknown fraction of that 7.3-point gap is
 training budget rather than a limit of the method.
 
-**LoRA rank sweep (r = 4, 8, 16, 32)** — from `notebooks/02_lora_rank_sweep.ipynb`:
+## Rank sweep: how much LoRA capacity is actually needed?
 
-*Pending — this notebook has not been run yet. The table and the diminishing-returns figure go here.*
+Notebook 01 measures LoRA at a single rank, `r=8`. The sweep in `notebooks/02_lora_rank_sweep.ipynb`
+turns that one point into a curve. It took two runs to get a curve worth reading, and the first run is
+part of the result rather than something we discarded quietly.
+
+### Run 1 — four epochs, and why we did not report its ranking
+
+The first sweep gave every rank four epochs, matching the budget notebook 01 originally used.
+
+| Rank | Trainable params | Accuracy |
+|---|---|---|
+| 4 | 206,669 | 30.8% |
+| 8 | 354,125 | 44.8% |
+| 16 | 649,037 | 54.5% |
+| 32 | 1,238,861 | 61.4% |
+
+![First sweep, four epochs](results/02_rank_sweep_4ep.png)
+
+Read at face value this says "rank matters enormously, keep increasing it." Two features of the data
+said we were measuring the wrong variable:
+
+1. **The curve never flattens.** It is still climbing steeply at `r=32`, 31 points below full
+   fine-tuning's 92.7%. A capacity ceiling shows up as a curve bending over. This one does not bend.
+2. **Validation accuracy was still rising at the final epoch for every rank.** None of the models had
+   finished learning with the parameters they already had.
+
+Both symptoms point at the training budget, not at rank. At a short fixed budget the two are
+confounded: a larger adapter absorbs a fixed number of steps faster, so higher rank looks better for a
+reason that has nothing to do with capacity.
+
+The fix was therefore to remove the confound — train each rank to *its own* ceiling — not to keep
+adding rank.
+
+### Run 2 — twenty epochs with early stopping
+
+Same ranks, same learning rate, same target modules. The only change is the budget: 20 epochs with
+early stopping on validation accuracy, so each rank stops when it stops improving.
 
 | Rank | Alpha | Trainable params | Accuracy | Macro F1 | Epochs | Train time |
 |---|---|---|---|---|---|---|
-| 4 | 8 | | | | | |
-| 8 | 16 | | | | | |
-| 16 | 32 | | | | | |
-| 32 | 64 | | | | | |
+| 4 | 8 | 206,669 | 82.2% | 0.819 | 20 | 1,227s |
+| 8 | 16 | 354,125 | 84.3% | 0.841 | 20 | 1,223s |
+| 16 | 32 | 649,037 | 86.7% | 0.867 | 20 | 1,230s |
+| 32 | 64 | 1,238,861 | 87.9% | 0.879 | 16 | 983s |
+
+**Test accuracy by rank.** Every rank lands well above Run 1, and the gap to full fine-tuning
+narrows as rank grows:
+
+![Run 2: test accuracy vs rank](results/02_rank_sweep_accuracy.png)
+
+**Trainable parameters by rank.** Each doubling of `r` doubles the adapter size:
+
+![Run 2: trainable parameters vs rank](results/02_rank_sweep_params.png)
+
+**Validation accuracy per epoch.** `r=32` stopped early at epoch 16; the other three used all 20 epochs
+and were still creeping upward at the end:
+
+![Run 2: convergence by rank](results/02_rank_sweep_convergence.png)
+
+### What the two runs prove together
+
+Holding rank fixed and changing only the budget moved `r=8` from 44.8% to 84.3% — **39.5 points from
+training time alone**. Both runs on one axis — the gap between the curves is the training budget, the slope along each
+curve is the rank:
+
+![Run 1 vs Run 2](results/02_run_comparison.png)
+
+The decisive comparison is this one:
+
+| Configuration | Trainable params | Accuracy |
+|---|---|---|
+| `r=32`, 4 epochs | 1,238,861 | 61.4% |
+| `r=4`, 20 epochs | 206,669 | **82.2%** |
+
+The smallest adapter trained properly beats the largest adapter trained briefly by **20.9 points using
+6× fewer parameters**. Rank cannot substitute for training budget, which is why run 1's ranking was a
+statement about convergence speed rather than about capacity.
+
+### The finding
+
+With every rank trained toward its ceiling, the diminishing return is visible — and it is in
+*efficiency*, not in raw accuracy:
+
+| Step | Accuracy gained | Parameters added | Points per 100k params |
+|---|---|---|---|
+| `r=4` → `r=8` | +2.08 | 147,456 | 1.41 |
+| `r=8` → `r=16` | +2.40 | 294,912 | 0.81 |
+| `r=16` → `r=32` | +1.14 | 589,824 | 0.19 |
+
+Every doubling still buys accuracy, but the yield per added parameter falls roughly 7× across the
+sweep. At `r=32`, LoRA reaches **94.8% of full fine-tuning's accuracy while training 1.13% of the
+parameters**.
+
+**Three caveats before citing that table:**
+
+- **Only `r=32` converged.** It early-stopped at epoch 16 with its best checkpoint at epoch 12. `r=4`,
+  `r=8` and `r=16` all hit the 20-epoch ceiling with validation accuracy still rising, so those three
+  are lower bounds. The efficiency decline is partly confounded by this: the lower ranks remain
+  budget-limited, not only capacity-limited.
+- **The run-to-run noise floor is about one point.** Notebook 01 and this sweep both trained `r=8` with
+  identical settings for 5,640 steps and produced 85.4% and 84.3% — 1.04 points apart from classifier
+  head initialisation alone. The `r=16` → `r=32` gain of 1.14 points sits barely above that, so `r=32`
+  leading `r=16` is suggestive, not established.
+- **Peak memory does not separate the ranks** — 1,304 MB to 1,325 MB across a 6× parameter range. It is
+  dominated by the frozen base model and the activations, not by the adapters.
+
+### Summary: full fine-tuning vs both LoRA runs
+
+The same four measures notebook 01 reports, now with both runs of the best rank (`r=32`) side by
+side. Run 1 and Run 2 train exactly the same adapter; only the training budget differs.
+
+![Full fine-tuning vs LoRA r=32, Run 1 and Run 2](results/02_final_comparison.png)
+
+| | Trainable params | Test accuracy | Training time | Peak GPU memory |
+|---|---|---|---|---|
+| Full fine-tune | 109,541,453 | 92.7% | 790s | 2,155 MB |
+| LoRA `r=32`, Run 1 (4 epochs) | 1,238,861 | 61.4% | 310s | 1,325 MB |
+| LoRA `r=32`, Run 2 (20 epochs) | 1,238,861 | 87.9% | 983s | 1,325 MB |
+
+Going from Run 1 to Run 2 added 26.5 points of accuracy for the same parameters and the same memory.
+The cost was training time. Against full fine-tuning, Run 2 keeps 94.8% of the accuracy while training
+1.1% of the parameters and using 38.5% less peak memory, and takes 1.24× as long.
 
 ### Results dashboard
 
