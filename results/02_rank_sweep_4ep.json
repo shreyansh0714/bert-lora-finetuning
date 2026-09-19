@@ -1,0 +1,42 @@
+[
+  {
+    "rank": 4,
+    "alpha": 8,
+    "trainable_params": 206669,
+    "trainable_pct": 0.188,
+    "accuracy": 0.30844155844155846,
+    "macro_f1": 0.264907,
+    "train_time_s": 299.5,
+    "peak_mem_mb": 1303.5
+  },
+  {
+    "rank": 8,
+    "alpha": 16,
+    "trainable_params": 354125,
+    "trainable_pct": 0.322,
+    "accuracy": 0.44805194805194803,
+    "macro_f1": 0.40414,
+    "train_time_s": 307.3,
+    "peak_mem_mb": 1306.9
+  },
+  {
+    "rank": 16,
+    "alpha": 32,
+    "trainable_params": 649037,
+    "trainable_pct": 0.589,
+    "accuracy": 0.5454545454545454,
+    "macro_f1": 0.505707,
+    "train_time_s": 307.7,
+    "peak_mem_mb": 1313.0
+  },
+  {
+    "rank": 32,
+    "alpha": 64,
+    "trainable_params": 1238861,
+    "trainable_pct": 1.118,
+    "accuracy": 0.6136363636363636,
+    "macro_f1": 0.579722,
+    "train_time_s": 309.6,
+    "peak_mem_mb": 1325.2
+  }
+]
