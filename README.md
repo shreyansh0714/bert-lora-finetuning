@@ -201,6 +201,12 @@ Instead each method trains until it stops improving:
 - Learning rates differ by method, as they should: 2e-5 for full fine-tuning, 2e-4 for LoRA, both with
   6% warmup. A fresh 77-way classification head at 2e-4 diverges in the first epoch without it.
 
+**Hardware.** Every result here was produced on a Kaggle **Tesla T4 ×2** runtime. The notebooks set a
+batch size of 16 per GPU, so with two GPUs each training step saw **32 examples**. The recorded step counts
+confirm it: 282 steps per epoch, which is 9,002 training rows divided by 32. On a single GPU the batch
+halves to 16, each epoch takes about 563 steps, and accuracy, step counts and timings will all differ
+somewhat. To reproduce these numbers exactly, use the same two-GPU runtime.
+
 ## Repo structure
 
 ```
