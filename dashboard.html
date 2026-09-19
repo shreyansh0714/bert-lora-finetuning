@@ -171,8 +171,9 @@
       <p class="lede">
         We taught a ready-made language model (Google's BERT) to sort bank customers' messages into 77
         categories, such as “card lost” or “refund not showing”. We tried two ways of teaching it, and
-        measured how accurate each one is and how much it costs. Every number on this page is read straight
-        from the result files in <code>results/</code>; nothing is typed in by hand.
+        measured how accurate each one is and how much it costs. Every table, chart and highlighted figure is
+        read straight from the result files in <code>results/</code>; only the section introductions describe
+        the training setup in words.
       </p>
       <a class="repo" href="https://github.com/shreyansh0714/bert-lora-finetuning">github.com/shreyansh0714/bert-lora-finetuning</a>
     </div>
@@ -198,41 +199,46 @@
   <section>
     <h2>Stage 1 — Two ways of teaching the model</h2>
     <p class="sub">Arnav's part (<code>notebooks/01_baseline_full_finetune_vs_lora.ipynb</code>). The same
-      model and the same data, taught both ways. Each one kept practising until it stopped getting better.</p>
+      model and the same data, taught both ways. Each had a cap on passes and could stop early once it stopped
+      getting better; in this run both used every pass they were allowed (10 and 20).</p>
     <div class="card" id="baseline"></div>
   </section>
 
   <section>
     <h2>Stage 1 — How fast each method learned</h2>
     <p class="sub">Accuracy after each pass through the data. Full fine-tuning levels off early. LoRA is still
-      improving when it runs out of passes, so its score is a floor, not its best possible.</p>
+      creeping up near the end of its 20 passes (its best was pass 19), so its score is a floor, not its best possible.</p>
     <div class="card" id="curves"></div>
   </section>
 
   <section>
     <h2>Stage 2, Run 1 — LoRA at four sizes, 4 passes each</h2>
-    <p class="sub">Our first attempt (<code>notebooks/02_lora_rank_sweep.ipynb</code>). To find out how big
-      the add-on needs to be, we trained it at four sizes, giving each size only 4 passes through the data.</p>
+    <p class="sub">Our first attempt (<code>notebooks/archive/02_lora_rank_sweep_4ep.ipynb</code>). To find out how big
+      the add-on needs to be, we trained it at four sizes, giving each size only 4 passes through the data,
+      with no warm-up and no early stopping.</p>
     <div class="card" id="run1"></div>
   </section>
 
   <section>
-    <h2>Stage 2, Run 2 — the same four sizes, more practice</h2>
-    <p class="sub">Same sizes, same settings. The only change: up to 20 passes, and each model stops on its
-      own once it stops improving.</p>
+    <h2>Stage 2, Run 2 — the same four sizes, a better training setup</h2>
+    <p class="sub">Same sizes and learning rate (<code>notebooks/02_lora_rank_sweep.ipynb</code>). The training
+      setup changed in five ways: up to 20 passes instead of 4; a gentle warm-up of the learning rate at the
+      start; early stopping that keeps the best checkpoint; 10% of the training data held back as a
+      practice-check set (9,002 training rows instead of 10,003); and the per-pass check done on that set
+      instead of on the test messages.</p>
     <div class="card" id="sweep"></div>
   </section>
 
   <section>
     <h2>Run 1 vs Run 2</h2>
-    <p class="sub">Both runs on one chart. The gap between the two lines is what extra practice bought. The
-      slope along each line is what a bigger add-on bought.</p>
+    <p class="sub">Both runs on one chart. The gap between the two lines is what the better training setup
+      bought. The slope along each line is what a bigger add-on bought.</p>
     <div class="card" id="compare"></div>
   </section>
 
   <section>
     <h2>Summary</h2>
-    <p class="sub">Full fine-tuning next to the best LoRA size, before and after we gave it enough practice.</p>
+    <p class="sub">Full fine-tuning next to the best LoRA size, before and after we fixed how it was trained.</p>
     <div class="card" id="summary"></div>
   </section>
 
@@ -807,8 +813,10 @@
       ' to ' + fmtPct(hi.accuracy) + ' at size ' + hi.rank + '. ' +
       (full ? 'But even the biggest was ' + ((full.accuracy - hi.accuracy) * 100).toFixed(0) +
               ' points below full fine-tuning, and ' : 'But ') + 'the line was still rising steeply.</p>' +
-      '<p><strong>Why we did not trust this result:</strong> a model that has reached its limit levels off. These had not. ' +
-      'They had simply not practised enough. So instead of making the add-on bigger, we gave every size more practice. That is Run 2.</p>');
+      '<p><strong>Why we did not trust this result:</strong> a model that has reached its limit levels off. These had not: ' +
+      'accuracy was still rising at the last pass (this run had no separate practice-check set, so that check was made on the test messages). ' +
+      'They were undertrained. So instead of making the add-on bigger, we fixed the training setup: more passes, a warm-up, ' +
+      'and early stopping on a held-back practice-check set. That is Run 2.</p>');
   }
 
   function renderSweep() {
@@ -837,7 +845,7 @@
 
     /* Zoomed y-axis on purpose: a zero baseline flattens all four sizes into one line.
        Exact values are in the table above, so nothing is hidden by the crop. */
-    rankAccChart(g, "Accuracy by add-on size, with more practice",
+    rankAccChart(g, "Accuracy by add-on size, with the better training setup",
       "Zoomed in to the range that matters; exact values are in the table above.",
       [{ label: "Run 2 (up to 20 passes)", color: T.s2, rows: rows }]);
 
@@ -861,7 +869,7 @@
           };
         });
         var p3 = panel(g, "Accuracy after each pass, by size",
-          "A line that ends early belongs to a model that stopped on its own once it stopped improving.");
+          "Checked on the held-back practice-check set. A line that ends early belongs to a model that stopped on its own once it stopped improving.");
         legend(p3, [{ label: "r = " + best.rank + " (best)", color: T.s2 }, { label: "other sizes", color: T.muted }]);
         lineChart(p3, { x: xs, series: cs, xLabel: "Pass (epoch)", yMinZero: true, yFormat: pct0 });
       }
@@ -875,7 +883,7 @@
     }
     var maxEp = Math.max.apply(null, rows.map(function (r) { return r.epochs_run || 0; }));
     var early = rows.filter(function (r) { return r.epochs_run && r.epochs_run < maxEp; });
-    var html = '<p><strong>In plain words:</strong> with more practice every size improved sharply. The smallest now scores ' +
+    var html = '<p><strong>In plain words:</strong> with the better training setup every size improved sharply. The smallest now scores ' +
       fmtPct(rows[0].accuracy) + ' and the largest ' + fmtPct(rows[rows.length - 1].accuracy) + '. ';
     if (yield_.length > 1 && yield_[yield_.length - 1] > 0) {
       html += 'Bigger still helps, but less and less: in the last step up, each extra number trained bought about <strong>' +
@@ -885,7 +893,8 @@
     if (early.length) {
       html += '<p><strong>One caution:</strong> only size ' + early.map(function (r) { return r.rank; }).join(", ") +
               ' stopped on its own, after ' + early.map(function (r) { return r.epochs_run; }).join(", ") +
-              ' passes. The other sizes used all ' + maxEp + ' passes and were still slowly improving, so their scores are a floor.</p>';
+              ' passes. The other sizes used all ' + maxEp + ' passes without stopping, with their best scores near the end, ' +
+              'so they were close to levelling off but not confirmed there; treat their scores as a floor.</p>';
     }
     note(host, html);
   }
@@ -900,7 +909,7 @@
     }
     var T = tokens(), r1 = byRank(DATA.run1), r2 = byRank(DATA.sweep);
     rankAccChart(oneCol(host), "Run 1 vs Run 2: accuracy by add-on size",
-      "Same sizes, same settings. Only the amount of practice differs.",
+      "Same sizes and learning rate. The training setup differs: passes, warm-up, early stopping and the practice-check set.",
       [{ label: "Run 2 (up to 20 passes)", color: T.s2, rows: r2 },
        { label: "Run 1 (4 passes)", color: T.muted, rows: r1 }]);
 
@@ -908,12 +917,13 @@
                   .filter(function (x) { return x !== null; });
     var small2 = r2[0], big1 = r1[r1.length - 1];
     note(host,
-      '<p><strong>In plain words:</strong> at every size, more practice added between <strong>' +
+      '<p><strong>In plain words:</strong> at every size, the better training setup added between <strong>' +
       Math.min.apply(null, gains).toFixed(1) + '</strong> and <strong>' + Math.max.apply(null, gains).toFixed(1) +
-      ' points</strong> of accuracy, without changing the add-on at all.</p>' +
-      '<p>The smallest add-on with enough practice (size ' + small2.rank + ', ' + fmtPct(small2.accuracy) +
-      ') beat the biggest add-on with too little (size ' + big1.rank + ', ' + fmtPct(big1.accuracy) + '), while training ' +
-      (big1.trainable_params / small2.trainable_params).toFixed(0) + '&times; fewer numbers. <strong>Practice mattered far more than size.</strong></p>');
+      ' points</strong> of accuracy for the same add-on size. That gain comes from the whole setup, not from the extra passes alone. ' +
+      'Run 1 even trained on more data (10,003 rows against 9,002) and still scored far lower.</p>' +
+      '<p>The smallest add-on with the better setup (size ' + small2.rank + ', ' + fmtPct(small2.accuracy) +
+      ') beat the biggest add-on with the short, unwarmed setup (size ' + big1.rank + ', ' + fmtPct(big1.accuracy) + '), while training ' +
+      (big1.trainable_params / small2.trainable_params).toFixed(0) + '&times; fewer numbers. <strong>How LoRA was trained mattered far more than its size.</strong></p>');
   }
 
   function renderSummary() {
@@ -948,7 +958,7 @@
       (100 * best.trainable_params / full.trainable_params).toFixed(1) + '%</strong> as many numbers and using <strong>' +
       (100 * (1 - best.peak_mem_mb / full.peak_mem_mb)).toFixed(1) + '% less</strong> graphics-card memory. The price was training time: ' +
       (best.train_time_s / full.train_time_s).toFixed(2) + '&times; as long.</p>' +
-      (before ? '<p><strong>The lesson from the two runs:</strong> judge LoRA only after it has had enough practice. With too little, ' +
+      (before ? '<p><strong>The lesson from the two runs:</strong> judge LoRA only after it has been trained properly. With a short, unwarmed setup, ' +
                 'the same add-on looked far worse (' + fmtPct(before.accuracy) + ') than it really is (' + fmtPct(best.accuracy) + ').</p>' : ''));
   }
 

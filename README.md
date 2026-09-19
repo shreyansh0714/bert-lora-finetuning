@@ -19,6 +19,10 @@ citing it: same model, same data, same protocol, both methods, real numbers.
 
 ## Results
 
+`results/01_baseline_comparison.png` is drawn by notebook 01. The convergence plot and every Stage 2
+figure are regenerated from the committed CSV/JSON files by `python scripts/make_figures.py`, so they
+can be rebuilt without a GPU.
+
 ### Stage 1 — full fine-tuning vs. LoRA at r=8
 
 From `notebooks/01_baseline_full_finetune_vs_lora.ipynb`:
@@ -42,8 +46,9 @@ is in memory and parameter count, not in time-to-result.
 ![Convergence](results/01_training_curves.png)
 
 The convergence plot is where the remaining accuracy gap becomes legible. Full fine-tuning is
-essentially flat from epoch 5 onward. LoRA is still improving at epoch 20, where its budget ran out —
-so **85.4% is a lower bound, not a converged value**, and some unknown fraction of that 7.3-point gap is
+essentially flat from epoch 5 onward. LoRA used all 20 epochs of its budget without early-stopping, with
+its best validation checkpoint at epoch 19 — close to a plateau but not confirmed converged — so **85.4% is
+best read as a lower bound, not a converged value**, and some unknown fraction of that 7.3-point gap is
 training budget rather than a limit of the method.
 
 ## Rank sweep: how much LoRA capacity is actually needed?
@@ -54,7 +59,9 @@ part of the result rather than something we discarded quietly.
 
 ### Run 1 — four epochs, and why we did not report its ranking
 
-The first sweep gave every rank four epochs, matching the budget notebook 01 originally used.
+The first sweep gave every rank four epochs, matching the budget notebook 01 originally used, with no
+warmup, no early stopping and no validation split: it trained on all 10,003 training rows and reported the
+last epoch.
 
 | Rank | Trainable params | Accuracy |
 |---|---|---|
@@ -73,20 +80,33 @@ said we were measuring the wrong variable:
 
 1. **The curve never flattens.** It is still climbing steeply at `r=32`, 31 points below full
    fine-tuning's 92.7%. A capacity ceiling shows up as a curve bending over. This one does not bend.
-2. **Validation accuracy was still rising at the final epoch for every rank.** None of the models had
+2. **Accuracy was still rising at the final epoch for every rank.** Run 1 had no validation split, so
+   this per-epoch check was made on the test set, but the trend is clear: none of the models had
    finished learning with the parameters they already had.
 
-Both symptoms point at the training budget, not at rank. At a short fixed budget the two are
-confounded: a larger adapter absorbs a fixed number of steps faster, so higher rank looks better for a
-reason that has nothing to do with capacity.
+Both symptoms say the models were undertrained, so rank was not what we were measuring. With a short,
+fixed training setup the two are confounded: a larger adapter absorbs a fixed number of steps faster,
+so higher rank looks better for a reason that has nothing to do with capacity.
 
-The fix was therefore to remove the confound — train each rank to *its own* ceiling — not to keep
-adding rank.
+The fix was therefore to repair the training setup and let each rank reach *its own* ceiling, not to
+keep adding rank.
 
-### Run 2 — twenty epochs with early stopping
+### Run 2 — a fixed training setup: longer, warmed up, early-stopped
 
-Same ranks, same learning rate, same target modules. The only change is the budget: 20 epochs with
-early stopping on validation accuracy, so each rank stops when it stops improving.
+Same ranks, same learning rate (2e-4), same `alpha = 2r`, dropout 0.1, target modules and sequence
+length. The training setup changed in five ways:
+
+| | Run 1 (`archive/02_lora_rank_sweep_4ep.ipynb`) | Run 2 (`02_lora_rank_sweep.ipynb`) |
+|---|---|---|
+| Epochs | 4 | up to 20 |
+| Learning-rate warmup | none | 6% (`warmup_ratio=0.06`) |
+| Early stopping | none; last epoch reported | patience 4, best checkpoint reported |
+| Training rows | all 10,003 | 9,002 (10% held out for validation) |
+| Per-epoch evaluation | on the test set | on the validation split |
+
+So the gain from Run 1 to Run 2 comes from the whole setup and cannot be attributed to epochs alone.
+Warmup is one likely factor: as Protocol notes, a fresh 77-way head at 2e-4 diverges in the first epoch
+without it. Run 1 also had *more* training data (10,003 rows against 9,002) and still scored far lower.
 
 | Rank | Alpha | Trainable params | Accuracy | Macro F1 | Epochs | Train time |
 |---|---|---|---|---|---|---|
@@ -104,16 +124,17 @@ narrows as rank grows:
 
 ![Run 2: trainable parameters vs rank](results/02_rank_sweep_params.png)
 
-**Validation accuracy per epoch.** `r=32` stopped early at epoch 16; the other three used all 20 epochs
-and were still creeping upward at the end:
+**Validation accuracy per epoch.** `r=32` stopped early at epoch 16 (best checkpoint at epoch 12). The
+other three used all 20 epochs without early-stopping, with best checkpoints at epochs 19 (`r=4`), 20
+(`r=8`) and 18 (`r=16`) — close to a plateau, but not confirmed converged:
 
 ![Run 2: convergence by rank](results/02_rank_sweep_convergence.png)
 
 ### What the two runs prove together
 
-Holding rank fixed and changing only the budget moved `r=8` from 44.8% to 84.3% — **39.5 points from
-training time alone**. Both runs on one axis — the gap between the curves is the training budget, the slope along each
-curve is the rank:
+Holding rank fixed and changing the training setup moved `r=8` from 44.8% to 84.3% — **39.5 points**.
+Both runs on one axis — the gap between the curves is the training setup, the slope along each curve is
+the rank:
 
 ![Run 1 vs Run 2](results/02_run_comparison.png)
 
@@ -121,12 +142,12 @@ The decisive comparison is this one:
 
 | Configuration | Trainable params | Accuracy |
 |---|---|---|
-| `r=32`, 4 epochs | 1,238,861 | 61.4% |
-| `r=4`, 20 epochs | 206,669 | **82.2%** |
+| `r=32`, Run 1 (4 epochs, no warmup) | 1,238,861 | 61.4% |
+| `r=4`, Run 2 (20 epochs, warmup, early stopping) | 206,669 | **82.2%** |
 
-The smallest adapter trained properly beats the largest adapter trained briefly by **20.9 points using
-6× fewer parameters**. Rank cannot substitute for training budget, which is why run 1's ranking was a
-statement about convergence speed rather than about capacity.
+The smallest adapter trained with the proper setup beats the largest adapter trained with the short,
+unwarmed setup by **20.9 points using 6× fewer parameters**. How LoRA is trained mattered more than its
+size, which is why Run 1's ranking was a statement about convergence speed rather than about capacity.
 
 ### The finding
 
@@ -146,12 +167,13 @@ parameters**.
 **Three caveats before citing that table:**
 
 - **Only `r=32` converged.** It early-stopped at epoch 16 with its best checkpoint at epoch 12. `r=4`,
-  `r=8` and `r=16` all hit the 20-epoch ceiling with validation accuracy still rising, so those three
-  are lower bounds. The efficiency decline is partly confounded by this: the lower ranks remain
-  budget-limited, not only capacity-limited.
+  `r=8` and `r=16` all hit the 20-epoch ceiling without early-stopping (best checkpoints at epochs 19,
+  20 and 18), so those three are best read as lower bounds. The efficiency decline is partly
+  confounded by this: the lower ranks remain budget-limited, not only capacity-limited.
 - **The run-to-run noise floor is about one point.** Notebook 01 and this sweep both trained `r=8` with
-  identical settings for 5,640 steps and produced 85.4% and 84.3% — 1.04 points apart from classifier
-  head initialisation alone. The `r=16` → `r=32` gain of 1.14 points sits barely above that, so `r=32`
+  identical settings for 5,640 steps and produced 85.4% and 84.3% — 1.04 points apart from run-to-run
+  variation alone (possible sources include initialisation order and GPU nondeterminism; the cause
+  was not isolated). The `r=16` → `r=32` gain of 1.14 points sits barely above that, so `r=32`
   leading `r=16` is suggestive, not established.
 - **Peak memory does not separate the ranks** — 1,304 MB to 1,325 MB across a 6× parameter range. It is
   dominated by the frozen base model and the activations, not by the adapters.
@@ -159,24 +181,28 @@ parameters**.
 ### Summary: full fine-tuning vs both LoRA runs
 
 The same four measures notebook 01 reports, now with both runs of the best rank (`r=32`) side by
-side. Run 1 and Run 2 train exactly the same adapter; only the training budget differs.
+side. Run 1 and Run 2 train exactly the same adapter; the training setup differs (the five changes in
+the Run 2 table above).
 
 ![Full fine-tuning vs LoRA r=32, Run 1 and Run 2](results/02_final_comparison.png)
 
 | | Trainable params | Test accuracy | Training time | Peak GPU memory |
 |---|---|---|---|---|
 | Full fine-tune | 109,541,453 | 92.7% | 790s | 2,155 MB |
-| LoRA `r=32`, Run 1 (4 epochs) | 1,238,861 | 61.4% | 310s | 1,325 MB |
-| LoRA `r=32`, Run 2 (20 epochs) | 1,238,861 | 87.9% | 983s | 1,325 MB |
+| LoRA `r=32`, Run 1 (4 epochs, no warmup) | 1,238,861 | 61.4% | 310s | 1,325 MB |
+| LoRA `r=32`, Run 2 (early-stopped at 16) | 1,238,861 | 87.9% | 983s | 1,325 MB |
 
 Going from Run 1 to Run 2 added 26.5 points of accuracy for the same parameters and the same memory.
-The cost was training time. Against full fine-tuning, Run 2 keeps 94.8% of the accuracy while training
-1.1% of the parameters and using 38.5% less peak memory, and takes 1.24× as long.
+The cost was training time. Run 1 read peak memory from device 0 only (the older method; see
+Limitations), so its memory figures are not strictly comparable to Run 2's, though they match closely.
+Against full fine-tuning, Run 2 keeps 94.8% of the accuracy while training 1.1% of the parameters and
+using 38.5% less peak memory, and takes 1.24× as long.
 
 ### Results dashboard
 
-`dashboard.html` renders these numbers from `results/*.json` — it has no build step and nothing in it is
-typed by hand, so it updates whenever the notebooks are re-run and the results re-committed. Serve the
+`dashboard.html` renders these numbers from `results/*.json` — it has no build step, and every table,
+chart and highlighted figure updates whenever the notebooks are re-run and the results re-committed (the
+section introductions describe the training setup in fixed text). Serve the
 repo root over HTTP and open it:
 
 ```bash
@@ -194,7 +220,9 @@ smaller parameter space and needs more steps to reach the same place; holding ep
 it. An earlier version of this repo did exactly that, gave both arms 4 epochs, and reported LoRA at
 46.9% — a configuration artifact, not a finding.
 
-Instead each method trains until it stops improving:
+Instead each method gets a generous epoch cap with early stopping, so it can train until it stops
+improving (in the runs reported here, full fine-tuning and LoRA `r=8` both used their whole caps — see
+Limitations):
 
 - Banking77 ships train/test only, so a stratified **90/10 split is carved out of train** for validation.
   The test split is untouched until the final evaluation.
@@ -206,9 +234,9 @@ Instead each method trains until it stops improving:
 
 **Hardware.** Every result here was produced on a Kaggle **Tesla T4 ×2** runtime. The notebooks set a
 batch size of 16 per GPU, so with two GPUs each training step saw **32 examples**. The recorded step counts
-confirm it: 282 steps per epoch, which is 9,002 training rows divided by 32. On a single GPU the batch
-halves to 16, each epoch takes about 563 steps, and accuracy, step counts and timings will all differ
-somewhat. To reproduce these numbers exactly, use the same two-GPU runtime.
+confirm it: 282 steps per epoch in Stage 1 and Run 2, which is 9,002 training rows divided by 32 (Run 1
+trained on all 10,003 rows, so it ran 313 steps per epoch). On a single GPU the batch halves to 16, each
+epoch takes about 563 steps, and accuracy, step counts and timings will all differ somewhat. To reproduce these numbers exactly, use the same two-GPU runtime.
 
 ## Repo structure
 
@@ -223,7 +251,11 @@ bert-lora-finetuning/
 │   └── lora_from_scratch.py    # minimal LoRA linear layer, no peft dependency
 ├── tests/
 │   └── test_lora_from_scratch.py   # run in CI on every push
-├── results/                    # CSV/JSON/PNG written by the notebooks
+├── scripts/
+│   └── make_figures.py         # regenerates the README figures from results/*.csv/json
+├── results/                    # CSV/JSON from the notebooks; PNGs from the notebooks or make_figures.py
+│   ├── 01_tradeoff.json        # ratio summary printed by notebook 01 (not used by the README or dashboard)
+│   └── 02_rank_sweep.png       # notebook 02's combined 3-panel plot (the README uses the split versions)
 ├── dashboard.html              # reads results/*.json, no build step
 ├── requirements.txt
 └── .github/workflows/ci.yml
@@ -243,6 +275,7 @@ bert-lora-finetuning/
      is present, and otherwise falls back to the committed value (92.7%), so the line is always drawn.
    - Download the generated `results/` files from the runtime's output panel and commit them; that is
      what the README tables and the dashboard read.
+   - Then run `python scripts/make_figures.py` locally to redraw the README figures from those files.
 2. **Notebook 03** and the test suite run anywhere, no GPU:
    ```bash
    pip install -r requirements.txt
@@ -251,9 +284,11 @@ bert-lora-finetuning/
 
 ## Limitations — read before citing these numbers
 
-- **LoRA did not converge.** It hit the 20-epoch ceiling while validation accuracy was still rising, so
-  85.4% is a floor. The honest version of the headline is "at least 92% of full fine-tuning accuracy,"
-  not "exactly 92%." Re-running with a larger budget would narrow the gap by an unknown amount.
+- **Neither Stage 1 arm early-stopped.** LoRA hit its 20-epoch ceiling (best checkpoint at epoch 19), so
+  85.4% is best read as a floor. Full fine-tuning also ran its full 10-epoch cap with its best
+  checkpoint at epoch 10, though its curve was near-flat from epoch 5 (90.7% to 91.9% validation).
+  The honest version of the headline is "at least 92% of full fine-tuning accuracy," not "exactly
+  92%." Re-running with a larger budget would narrow the gap by an unknown amount.
 - **Single seed.** One training run per configuration, not an average. Treat the numbers as directional,
   not statistically validated — a 7.3-point gap from one seed each is suggestive, not conclusive.
 - **One dataset, one base model.** Banking77 and `bert-base-uncased` only. Nothing here shows the result
@@ -262,7 +297,8 @@ bert-lora-finetuning/
   original LoRA paper's attention-only setting; it is a convention, not a tuned choice.
 - **No hyperparameter search** beyond the rank sweep. Learning rate, alpha and dropout are fixed.
 - **Memory is measured as peak allocation**, via `torch.cuda.max_memory_allocated`, taken as the max
-  across visible devices. An earlier version read device 0 only and reported the two methods backwards.
+  across visible devices. An earlier version read device 0 only and reported the two methods
+  backwards; sweep Run 1 still used that device-0 reading.
 - This is comparison code, not production code — no error handling, config management, or serving
   beyond the `merge()` demonstration in notebook 03.
 
