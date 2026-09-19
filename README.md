@@ -92,7 +92,19 @@ early stopping on validation accuracy, so each rank stops when it stops improvin
 | 16 | 32 | 649,037 | 86.7% | 0.867 | 20 | 1,230s |
 | 32 | 64 | 1,238,861 | 87.9% | 0.879 | 16 | 983s |
 
-![Rank sweep](results/02_rank_sweep.png)
+**Test accuracy by rank.** Every rank lands well above Run 1, and the gap to full fine-tuning
+narrows as rank grows:
+
+![Run 2: test accuracy vs rank](results/02_rank_sweep_accuracy.png)
+
+**Trainable parameters by rank.** Each doubling of `r` doubles the adapter size:
+
+![Run 2: trainable parameters vs rank](results/02_rank_sweep_params.png)
+
+**Validation accuracy per epoch.** `r=32` stopped early at epoch 16; the other three used all 20 epochs
+and were still creeping upward at the end:
+
+![Run 2: convergence by rank](results/02_rank_sweep_convergence.png)
 
 ### What the two runs prove together
 
@@ -140,6 +152,23 @@ parameters**.
   leading `r=16` is suggestive, not established.
 - **Peak memory does not separate the ranks** — 1,304 MB to 1,325 MB across a 6× parameter range. It is
   dominated by the frozen base model and the activations, not by the adapters.
+
+### Summary: full fine-tuning vs both LoRA runs
+
+The same four measures notebook 01 reports, now with both runs of the best rank (`r=32`) side by
+side. Run 1 and Run 2 train exactly the same adapter; only the training budget differs.
+
+![Full fine-tuning vs LoRA r=32, Run 1 and Run 2](results/02_final_comparison.png)
+
+| | Trainable params | Test accuracy | Training time | Peak GPU memory |
+|---|---|---|---|---|
+| Full fine-tune | 109,541,453 | 92.7% | 790s | 2,155 MB |
+| LoRA `r=32`, Run 1 (4 epochs) | 1,238,861 | 61.4% | 310s | 1,325 MB |
+| LoRA `r=32`, Run 2 (20 epochs) | 1,238,861 | 87.9% | 983s | 1,325 MB |
+
+Going from Run 1 to Run 2 added 26.5 points of accuracy for the same parameters and the same memory.
+The cost was training time. Against full fine-tuning, Run 2 keeps 94.8% of the accuracy while training
+1.1% of the parameters and using 38.5% less peak memory, and takes 1.24× as long.
 
 ### Results dashboard
 
