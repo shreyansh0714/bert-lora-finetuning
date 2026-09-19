@@ -97,7 +97,12 @@ early stopping on validation accuracy, so each rank stops when it stops improvin
 ### What the two runs prove together
 
 Holding rank fixed and changing only the budget moved `r=8` from 44.8% to 84.3% — **39.5 points from
-training time alone**. The decisive comparison is this one:
+training time alone**. Both runs on one axis — the gap between the curves is the training budget, the slope along each
+curve is the rank:
+
+![Run 1 vs Run 2](results/02_run_comparison.png)
+
+The decisive comparison is this one:
 
 | Configuration | Trainable params | Accuracy |
 |---|---|---|
