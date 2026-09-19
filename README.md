@@ -65,6 +65,9 @@ The first sweep gave every rank four epochs, matching the budget notebook 01 ori
 
 ![First sweep, four epochs](results/02_rank_sweep_4ep.png)
 
+The notebook that produced this run is kept, with its original printed outputs, at
+`notebooks/archive/02_lora_rank_sweep_4ep.ipynb`.
+
 Read at face value this says "rank matters enormously, keep increasing it." Two features of the data
 said we were measuring the wrong variable:
 
@@ -201,6 +204,12 @@ Instead each method trains until it stops improving:
 - Learning rates differ by method, as they should: 2e-5 for full fine-tuning, 2e-4 for LoRA, both with
   6% warmup. A fresh 77-way classification head at 2e-4 diverges in the first epoch without it.
 
+**Hardware.** Every result here was produced on a Kaggle **Tesla T4 ×2** runtime. The notebooks set a
+batch size of 16 per GPU, so with two GPUs each training step saw **32 examples**. The recorded step counts
+confirm it: 282 steps per epoch, which is 9,002 training rows divided by 32. On a single GPU the batch
+halves to 16, each epoch takes about 563 steps, and accuracy, step counts and timings will all differ
+somewhat. To reproduce these numbers exactly, use the same two-GPU runtime.
+
 ## Repo structure
 
 ```
@@ -208,7 +217,8 @@ bert-lora-finetuning/
 ├── notebooks/
 │   ├── 01_baseline_full_finetune_vs_lora.ipynb   # main comparison, run this first
 │   ├── 02_lora_rank_sweep.ipynb                   # r = 4, 8, 16, 32, independent of 01
-│   └── 03_lora_from_scratch_demo.ipynb            # no GPU needed, demos src/ directly
+│   ├── 03_lora_from_scratch_demo.ipynb            # no GPU needed, demos src/ directly
+│   └── archive/02_lora_rank_sweep_4ep.ipynb       # Run 1 (4 epochs), kept as a record
 ├── src/
 │   └── lora_from_scratch.py    # minimal LoRA linear layer, no peft dependency
 ├── tests/
@@ -224,9 +234,13 @@ bert-lora-finetuning/
 1. **Notebooks 01 and 02** need a GPU — upload to [Colab](https://colab.research.google.com) or
    [Kaggle](https://kaggle.com/code) with a GPU runtime. Each installs its own dependencies in its first
    cell. Budget roughly 35 minutes for `01` and 1.5–2 hours for `02`.
+   - **On Kaggle, switch the internet on before running** (right-hand panel → *Settings* → *Internet*,
+     which needs a phone-verified account), and pick a *GPU T4 ×2* accelerator. The notebooks download their
+     libraries, the dataset and the BERT model at the start; with the internet off, the first cell fails with
+     `Temporary failure in name resolution`.
    - `01` and `02` do not depend on each other's execution and can run in parallel on two machines.
-     `02` picks up the full-fine-tune reference line automatically from `results/01_baseline_comparison.json`
-     if that file is present, and omits the line if it isn't.
+     `02` picks up the full-fine-tune reference line from `results/01_baseline_comparison.json` if that file
+     is present, and otherwise falls back to the committed value (92.7%), so the line is always drawn.
    - Download the generated `results/` files from the runtime's output panel and commit them; that is
      what the README tables and the dashboard read.
 2. **Notebook 03** and the test suite run anywhere, no GPU:
